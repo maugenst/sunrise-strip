@@ -24,19 +24,19 @@ To overcome this limitation, a **second Raspberry Pi** (`sunrise-audio`) handles
 
 ## 🌇 Features
 
-- Gradual sunrise simulation using an LED strip  
-- Adjustable wake-up time via a **Svelte/SvelteKit web frontend**  
-- Independent **NestJS REST API** on the audio controller  
-- Synchronization between light and sound start  
-- Configurable duration, brightness curve, and color gradient  
-- Modular architecture – runs on nearly any Raspberry Pi model  
+- Gradual sunrise simulation using an LED strip
+- Adjustable wake-up time via a **Svelte/SvelteKit web frontend**
+- Independent **NestJS REST API** on the audio controller
+- Synchronization between light and sound start
+- Configurable duration, brightness curve, and color gradient
+- Modular architecture – runs on nearly any Raspberry Pi model
 
 ---
 
 ## 🧩 Repository Structure
 
 ```
-/
+sunrise-strip/
 ├── sunrise/               # LED controller (SvelteKit + LED control)
 │   ├── src/
 │   ├── public/
@@ -76,20 +76,20 @@ For non-German speakers, here’s an [auto-translated version](https://www.youtu
 
 ### Basic Wiring Steps
 
-1. **Power:**  
-   - Connect LED strip **+5 V** (or +12 V depending on model) to power supply.  
-   - Connect **GND** of LED strip to the same power supply and Raspberry Pi GND.
+1. **Power:**
+    - Connect LED strip **+5 V** (or +12 V depending on model) to power supply.
+    - Connect **GND** of LED strip to the same power supply and Raspberry Pi GND.
 
-2. **Data Line:**  
-   - Connect LED strip **Data IN** to a Raspberry Pi GPIO pin (default: `GPIO18`).  
-   - If the strip runs on 5 V logic, use a **level shifter** to boost signal from 3.3 V to 5 V.
+2. **Data Line:**
+    - Connect LED strip **Data IN** to a Raspberry Pi GPIO pin (default: `GPIO18`).
+    - If the strip runs on 5 V logic, use a **level shifter** to boost signal from 3.3 V to 5 V.
 
-3. **Ground Reference:**  
-   - Ensure all grounds (Pi, LED, PSU) are connected together.
+3. **Ground Reference:**
+    - Ensure all grounds (Pi, LED, PSU) are connected together.
 
-4. **Check Power Budget:**  
-   - Each WS2812B LED draws up to ~60 mA at full white brightness.  
-   - Plan power injection points for long strips to avoid voltage drop.
+4. **Check Power Budget:**
+    - Each WS2812B LED draws up to ~60 mA at full white brightness.
+    - Plan power injection points for long strips to avoid voltage drop.
 
 ---
 
@@ -98,8 +98,8 @@ For non-German speakers, here’s an [auto-translated version](https://www.youtu
 ### 1. Clone Repository
 
 ```bash
-git clone https://github.com/your-org/sunrise-wall-picture.git
-cd sunrise-wall-picture
+git clone https://github.com/maugenst/sunrise-strip.git
+cd sunrise-strip
 ```
 
 ### 2. Build the LED Controller (`sunrise`)
@@ -166,17 +166,17 @@ http://sunrise.local:5173
 
 ## 🧭 Future Enhancements
 
-- Add weekly schedule profiles (e.g., weekdays vs weekends)  
-- Integrate ambient light sensor for brightness adaptation  
-- Add MQTT / Home Assistant integration  
-- Allow multiple sunrise scenes or themes  
-- Add snooze control via web or physical button  
+- Add weekly schedule profiles (e.g., weekdays vs weekends)
+- Integrate ambient light sensor for brightness adaptation
+- Add MQTT / Home Assistant integration
+- Allow multiple sunrise scenes or themes
+- Add snooze control via web or physical button
 
 ---
 
 ## 📚 References
 
-- LED wiring tutorial (German): [YouTube](https://www.youtube.com/watch?v=kVFnEXX-YUE)  
+- LED wiring tutorial (German): [YouTube](https://www.youtube.com/watch?v=kVFnEXX-YUE)
 - Auto-translated version (English): [YouTube Auto-Translate](https://www.youtube.com/watch?v=kVFnEXX-YUE&cc_lang_pref=en&cc_load_policy=1)
 
 ---
