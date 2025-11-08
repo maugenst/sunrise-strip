@@ -1,5 +1,5 @@
 # IDEs and editors
-/.idea
+.idea
 .project
 .classpath
 .c9/
@@ -14,12 +14,17 @@
 !.vscode/launch.json
 !.vscode/extensions.json
 
-# Nestjs specific
+# Outputs
 dist
 node_modules
 build
 tmp
-
+# sunrise
+.svelte-kit
+.output
+.vercel
+.netlify
+.wrangler
 # Logs
 logs
 *.log
@@ -46,22 +51,10 @@ lerna-debug.log*
 .temp
 .tmp
 
-# sunrise
-.svelte-kit
-
-# sunrise->Output
-.output
-.vercel
-.netlify
-.wrangler
 
 # sunrise->Vite
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
-
-# sunrise-audio
-
-# compiled output
 
 # OS
 .DS_Store
