@@ -22,14 +22,17 @@ def fade_in(step=5, delay=1, max_volume=100):
             print(f'Percent: {v}')
         print("🎵 Fade-in complete")
 
-def fade_out_and_stop(step=5, delay=0.1):
+def fade_out_and_stop(step=5, delay=0.5):
     """Gradually lower volume to 0 and stop playback."""
     with fade_lock:
         current_vol = int(round(pygame.mixer.music.get_volume() * 100))
+        print(f'Current Volume: {current_vol}')
+
         if current_vol < 0:
             current_vol = 100
         for v in range(current_vol, -1, -step):
-            pygame.mixer.music.set_volume(max(v, 0))
+            print(f'Percent: {v}')
+            pygame.mixer.music.set_volume(max(v/100, 0))
             time.sleep(delay)
         pygame.mixer.music.stop()
         print("🔇 Fade-out complete and playback stopped")
@@ -53,3 +56,4 @@ def fadeout_endpoint():
 if __name__ == "__main__":
     # Listen on all interfaces for remote calls
     app.run(host="0.0.0.0", port=5000)
+
