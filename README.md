@@ -46,24 +46,51 @@ sunrise-strip/
     └── README.md
 ```
 
----
+### Mount remote Pi's to local machine
 
+For easy development I decided to mount the Raspberry Pi's code directories to a local mount point using 
+sshfs included in [Fuse-T](https://www.fuse-t.org/). The reason why I chose this is that remote development 
+functionality built in tin VS Code or Webstorm requires an active server (Pi) side component to be installed
+and running. While it was running in VS Code, it was failing in Webstorm with mentioning that the remote 
+machine has to have at least 4GB of memory. Quiet a bit too much for a Raspi environment. Simple remote editing 
+is enough. 
+
+#### Install FUSE-T 
+
+```bash
+$ brew tap macos-fuse-t/homebrew-cask
+$ brew install fuse-t fuse-t-sshfs
+
+$ sshfs user@server:/directory /mount-here
+```
+
+#### Local setup
+
+```bash
+$ sshfs marius@sunrise:/home/marius/github/sunrise-strip/sunrise ~/github/sunrise
+$ sshfs marius@sunriseaudio:/home/marius/github/sunrise-strip/sunrise-audio ~/github/sunriseaudio
+```
+
+---
 ## 🔌 Hardware Components
 
-| Link | Description |
-|------|--------------|
-| [AZDelivery Jumper Wire Set (120 pcs)](https://www.amazon.de/dp/B074P726ZR) | Male-to-male, male-to-female, and female-to-female jumper wires for connecting the Raspberry Pi to the LED strip and other components. |
-| [YIXISI 5.5×2.1 mm DC Pigtail Adapter Cables](https://www.amazon.de/dp/B0CMK6ZC7X) | DC power plug adapters for connecting LED strip and power supply cables securely. |
-| [BTF-Lighting WS2812B LED Strip (5 m)](https://www.amazon.de/dp/B078JJJ2SJ) | Individually addressable RGB LED strip (5 V), suitable for sunrise light effects. |
-| [ALITOVE 5 V 10 A Power Supply](https://www.amazon.de/dp/B0D93QKS26) | Provides stable power for up to 300 WS2812B LEDs. Ensure adequate amperage for your strip length. |
-| [Logic Level Shifter Module 3.3 V↔5 V](https://www.amazon.de/dp/B0CW2RFQS8) | Converts the 3.3 V GPIO data signal from the Raspberry Pi to 5 V required by most LED strips. |
-| [SanDisk 32 GB microSDHC Card](https://www.amazon.de/dp/B01CDTEG1O) | Storage for Raspberry Pi OS and project files. |
-| [Raspberry Pi 4 Model B (4 GB)](https://www.amazon.de/dp/B085C25P92) | Runs the `sunrise` LED controller and frontend. |
-| [Raspberry Pi 3 Model B + Case](https://www.amazon.de/dp/B01LCXFEMM) | Used as `sunrise-audio` for sound playback. |
-| [HiFiBerry DAC+ Light Sound Card](https://www.amazon.de/dp/B0DHY45TL7) | Optional external DAC for high-quality audio playback on `sunrise-audio`. |
-| [WAV Monospeaker 5 W USB Powered](https://www.amazon.de/dp/B0F48LWK9S) | Simple USB speaker for wake-up sounds. |
-| [Mean Well LRS-50-5 Power Supply (5 V 10 A)](https://www.amazon.de/dp/B09NDP48TX) | Reliable 5 V PSU alternative with terminal connections for LED and Pi. |
-
+| Link                                                                                                                                                                                         | Description                                                                                                                            |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| [AZDelivery Jumper Wire Set (120 pcs)](https://www.amazon.de/dp/B074P726ZR)                                                                                                                  | Male-to-male, male-to-female, and female-to-female jumper wires for connecting the Raspberry Pi to the LED strip and other components. |
+| [YIXISI 5.5×2.1 mm DC Pigtail Adapter Cables](https://www.amazon.de/dp/B0CMK6ZC7X)                                                                                                           | DC power plug adapters for connecting LED strip and power supply cables securely.                                                      |
+| [BTF-Lighting WS2812B LED Strip (5 m)](https://www.amazon.de/dp/B078JJJ2SJ)                                                                                                                  | Individually addressable RGB LED strip (5 V), suitable for sunrise light effects.                                                      |
+| [Logic Level Shifter Module 3.3 V↔5 V](https://www.amazon.de/dp/B0CW2RFQS8)                                                                                                                  | Converts the 3.3 V GPIO data signal from the Raspberry Pi to 5 V required by most LED strips.                                          |
+| [Raspberry Pi 4 Model B (4 GB)](https://www.amazon.de/dp/B085C25P92)                                                                                                                         | Runs the `sunrise` LED controller and frontend.                                                                                        |
+| [Raspberry Pi 3 Model B + Case](https://www.amazon.de/dp/B01LCXFEMM)                                                                                                                         | Used as `sunrise-audio` for sound playback.                                                                                            |
+| [WAV Monospeaker 5 W USB Powered](https://www.amazon.de/dp/B0F48LWK9S)                                                                                                                       | Simple USB speaker for wake-up sounds.                                                                                                 |
+| [Mean Well LRS-50-5 Power Supply (5 V 10 A)](https://www.amazon.de/dp/B09NDP48TX)                                                                                                            | Reliable 5 V PSU alternative with terminal connections for LED and Pi.                                                                 |
+| [USB C zu 2 Pin Bare Wire Open End Kabel](https://www.amazon.de/dp/B0DHY45TL7)                                                                                                               | USB C zu 2 Pin Bare Wire Open End Kabel to directly connect a Raspberry to the PSU                                                     |
+| [5 Pieces USB-A Female 5V/3A Pigtail Open End Power Cable](https://www.amazon.de/dp/B0D2VMD65T)                                                                                              | To get a decoupled power supply for the speakers                                                                                       |
+| [Pack of 6 Micro USB Pigtail](https://www.amazon.de/dp/B0F48LWK9S)                                                                                                                           | Power supply for the second Raspberry Pi 3b to PSU                                                                                     |
+| [PCB Kits](https://www.amazon.de/dp/B09NDP48TX)                                                                                                                                              | Breadboards boards are super for testing but not production ready.                                                                     |
+| [Breakout Board for Raspberry Pis .... ](https://www.amazon.de/dp/B0BFB618CJ)                                                                                                                | For maintainabillity I choose this Breakout board. Connections cannot be loosen. Recommended for reliable wiring.                      |
+| [Raspberry Pi DIN Rail Clip Mount](https://www.amazon.de/dp/B0CQ5GYL72)                                                                                                                      | For later there will be a 3d printed case with a 3.5 mm DIN rail system to mount the Pis properly.                                     |
+| [3-Pin Core Extension Cable 10 m](https://www.amazon.de/dp/B08JPLRXRK)                                                                                                                       | For wiring from the box to the picture.                                                                                                |
 ---
 
 ## 🔧 Wiring the LED Strip
