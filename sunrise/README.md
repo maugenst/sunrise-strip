@@ -1,38 +1,21 @@
-# sv
+# Sunrise Simulation – deps aligned to your environment
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+This matches what your npm actually pulled:
+- @sveltejs/kit 2.48.4
+- svelte 5.1.15
+- vite 7.0.5
 
-## Creating a project
+So the peer deps should resolve **without** --force.
 
-If you're seeing this, you've probably already done this step. Congrats!
+Run:
 
-```sh
-# create a new project in the current directory
-npx sv create
-
-# create a new project in my-app
-npx sv create my-app
-```
-
-## Developing
-
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
-
-```sh
-npm run dev
-
-# or start the server and open the app in a new browser tab
+```bash
+npm install
 npm run dev -- --open
 ```
 
-## Building
+If your npm still complains because of a global override, you can do:
 
-To create a production version of your app:
-
-```sh
-npm run build
+```bash
+npm install --legacy-peer-deps
 ```
-
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
