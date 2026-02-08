@@ -15,7 +15,7 @@ const LEDS = 300;
 const options = {
   dma: 10,
   freq: 800000,
-  gpio: 18,
+  gpio: 10,
   invert: false,
   brightness: 255,
   stripType: ws281x.stripType.WS2812
@@ -249,7 +249,7 @@ console.log(`Loaded ${sunriseKeyframes.length} keyframes. Target: ${totalSunrise
 
     if (progressPercent > 95 && !audio_started) {
       try {
-        const response = await fetch('http://sunriseaudio:5000/fadein');
+        const response = await fetch('http://sunrise:5000/fadein');
         const data = await response.json().catch(() => ({}));
         console.log(`Audio fade-in response: ${JSON.stringify(data)}`);
       } catch (e) {
@@ -276,7 +276,7 @@ console.log(`Loaded ${sunriseKeyframes.length} keyframes. Target: ${totalSunrise
   }
 
   try {
-    const response = await fetch('http://sunriseaudio:5000/fadeout');
+    const response = await fetch('http://sunrise:5000/fadeout');
     const data = await response.json().catch(() => ({}));
     console.log(`Audio fade-out response: ${JSON.stringify(data)}`);
   } catch (e) {
