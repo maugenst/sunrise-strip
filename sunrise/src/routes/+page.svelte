@@ -1,43 +1,10 @@
+// File: src/routes/+page.svelte
 <script>
     import { onMount } from 'svelte';
     import ColorChannelChart from '$lib/ColorChannelChart.svelte';
     import { recomputeDerived } from '$lib/sunriseUtils.js';
-    const PROXY_WS_URL = 'ws://your-pi-or-hostname:8081'; // <-- set your host/IP
-    let ws;
-    let wsConnected = false;
-
-    function connectWS() {
-        try {
-            ws = new WebSocket(PROXY_WS_URL);
-            ws.onopen = () => {
-                wsConnected = true;
-                logs = [...logs, '[ws] connected to LED proxy'].slice(-400);
-            };
-            ws.onclose = () => {
-                wsConnected = false;
-                logs = [...logs, '[ws] disconnected, retrying…'].slice(-400);
-                setTimeout(connectWS, 1000);
-            };
-            ws.onerror = (e) => {
-                logs = [...logs, `[ws] error: ${e?.message ?? e}`].slice(-400);
-            };
-            ws.onmessage = (evt) => {
-                // daemon/proxy responses
-                logs = [...logs, `[ws] ${evt.data}`].slice(-400);
-            };
-        } catch (err) {
-            logs = [...logs, `[ws] failed: ${err}`].slice(-400);
-            setTimeout(connectWS, 1000);
-        }
-    }
-
-    onMount(() => {
-        connectWS();
-    });
 
     const STEP_COUNT = 20;
-    const STORAGE_KEY = 'sunrise-sim-v1';
-    const LED_API_URL = 'http://127.0.0.1:5454/color'; // root daemon endpoint
 
     let rows = Array.from({ length: STEP_COUNT }, (_, i) => {
         const time = Math.round((i / (STEP_COUNT - 1)) * 100);
@@ -51,64 +18,122 @@
     let lastTimestamp = 0;
     let logs = [];
     let sliderPercent = 0;
-    let hasLoaded = false;
+    let ledSendTimeout;
 
-    onMount(() => {
-        if (typeof localStorage !== 'undefined') {
-            const raw = localStorage.getItem(STORAGE_KEY);
-            if (raw) {
-                try {
-                    const parsed = JSON.parse(raw);
-                    if (Array.isArray(parsed.rows) && parsed.rows.length === STEP_COUNT) {
-                        rows = parsed.rows.map((r) => recomputeDerived(r));
-                    }
-                    if (typeof parsed.simulationMinutes === 'number') {
-                        simulationMinutes = parsed.simulationMinutes;
-                    }
-                } catch (e) {
-                    console.warn('Could not parse stored data', e);
+    let stopFileExists = false;
+
+    async function refreshStopFile() {
+        try {
+            const res = await fetch('/api/stop');
+            if (res.ok) {
+                const data = await res.json();
+                stopFileExists = !!data.exists;
+            }
+        } catch (e) {
+            logs = [...logs, `[stop] status error: ${e}`].slice(-400);
+        }
+    }
+
+    async function toggleStopFile() {
+        try {
+            if (stopFileExists) {
+                const res = await fetch('/api/stop', { method: 'DELETE' });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data.ok) {
+                    logs = [...logs, '[stop] STOP file deleted'].slice(-400);
+                } else {
+                    logs = [...logs, `[stop] delete failed: ${data?.error ?? 'unknown'}`].slice(-400);
+                }
+            } else {
+                const res = await fetch('/api/stop', { method: 'POST' });
+                const data = await res.json().catch(() => ({}));
+                if (res.ok && data.ok) {
+                    logs = [...logs, '[stop] STOP file created'].slice(-400);
+                } else {
+                    logs = [...logs, `[stop] create failed: ${data?.error ?? 'unknown'}`].slice(-400);
                 }
             }
+        } catch (e) {
+            logs = [...logs, `[stop] toggle error: ${e}`].slice(-400);
+        } finally {
+            await refreshStopFile();
         }
-        hasLoaded = true;
+    }
+
+    onMount(async () => {
+        // existing preset load code ...
+        try {
+            const res = await fetch('/api/preset');
+            if (res.ok) {
+                const data = await res.json();
+                if (data.ok && Array.isArray(data.rows) && data.rows.length > 0) {
+                    const loadedRows = data.rows.slice(0, STEP_COUNT);
+                    rows = loadedRows.map((r, i) =>
+                        recomputeDerived({
+                            time: typeof r.time === 'number' ? r.time : Math.round((i / (STEP_COUNT - 1)) * 100),
+                            red: Number(r.red) || 0,
+                            green: Number(r.green) || 0,
+                            blue: Number(r.blue) || 0,
+                            kelvin: 1800,
+                            intensity: 0
+                        })
+                    );
+                    if (typeof data.simulationMinutes === 'number') simulationMinutes = data.simulationMinutes;
+                    logs = [...logs, '[preset] loaded from file'].slice(-400);
+                } else {
+                    logs = [...logs, '[preset] no preset file found, using defaults'].slice(-400);
+                }
+            }
+        } catch (e) {
+            logs = [...logs, `[preset] load error: ${e}`].slice(-400);
+        }
+        await refreshStopFile();
     });
 
-    // persist only after load
-    $: if (hasLoaded) {
-        if (typeof localStorage !== 'undefined') {
-            localStorage.setItem(
-                STORAGE_KEY,
-                JSON.stringify({
-                    rows,
-                    simulationMinutes
-                })
-            );
+    async function savePreset() {
+        try {
+            const compactRows = rows.map((r) => ({
+                time: r.time,
+                red: r.red,
+                green: r.green,
+                blue: r.blue
+            }));
+            const body = { simulationMinutes, rows: compactRows };
+            const res = await fetch('/api/preset', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok && data.ok) {
+                logs = [...logs, '[preset] saved to file'].slice(-400);
+            } else {
+                logs = [...logs, `[preset] save failed: ${data?.error ?? 'unknown'}`].slice(-400);
+            }
+        } catch (e) {
+            logs = [...logs, `[preset] save error: ${e}`].slice(-400);
         }
     }
 
     function updateRow(index, patch) {
         rows = rows.map((r, i) => (i === index ? recomputeDerived({ ...r, ...patch }) : r));
     }
-
     function handleChannelChange(event) {
         const { index, value, channel } = event.detail;
         updateRow(index, { [channel]: value });
     }
-
     function handleTableChange(index, key, value) {
         let num = Number(value);
         if (Number.isNaN(num)) num = 0;
         num = Math.min(255, Math.max(0, num));
         updateRow(index, { [key]: num });
     }
-
     function handleTimeChange(index, value) {
         let num = Number(value);
         if (Number.isNaN(num)) num = 0;
         num = Math.min(100, Math.max(0, num));
         rows = rows.map((r, i) => (i === index ? { ...r, time: num } : r));
     }
-
     function togglePlay() {
         if (isPlaying) {
             isPlaying = false;
@@ -118,12 +143,9 @@
         sliderPercent = 0;
         lastTimestamp = 0;
         isPlaying = true;
-        logs = [
-            `Starting KELVIN-based sunrise simulation over ${simulationMinutes} minute(s)...`
-        ];
+        logs = [`Starting KELVIN-based sunrise simulation over ${simulationMinutes} minute(s)...`];
         requestAnimationFrame(tick);
     }
-
     function getInterpolatedColor(progress) {
         const maxIndex = STEP_COUNT - 1;
         const idx = Math.floor(progress);
@@ -135,51 +157,36 @@
         const b = Math.round(current.blue + (next.blue - current.blue) * frac);
         return { r, g, b };
     }
-
-    const toColorInt = (r, g, b) =>
-        '0x' + ((r << 16) | (g << 8) | b).toString(16).padStart(8, '0');
-
+    const toColorInt = (r, g, b) => '0x' + ((r << 16) | (g << 8) | b).toString(16).padStart(8, '0');
     const kelvinFromProgress = (p) => Math.round(1800 + (6500 - 1800) * p);
     const intensityFromRGB = (r, g, b) => Math.round(((r + g + b) / 3 / 255) * 100);
-
     function tick(timestamp) {
         if (!isPlaying) return;
         if (!lastTimestamp) lastTimestamp = timestamp;
-
         const elapsedMs = timestamp - lastTimestamp;
         lastTimestamp = timestamp;
-
-        const totalMs = simulationMinutes * 60_000;
+        const totalMs = simulationMinutes * 60000;
         if (totalMs <= 0) {
             isPlaying = false;
             return;
         }
-
         playProgress += (elapsedMs / totalMs) * (STEP_COUNT - 1);
-
         if (playProgress >= STEP_COUNT - 1) {
             playProgress = STEP_COUNT - 1;
             isPlaying = false;
         }
-
         const pct01 = Math.min(1, playProgress / (STEP_COUNT - 1));
         sliderPercent = pct01 * 100;
-
         logCurrentLine(pct01);
-
         if (isPlaying) requestAnimationFrame(tick);
     }
-
     function logCurrentLine(pct01) {
         const { r, g, b } = getInterpolatedColor(playProgress);
         const kelvin = kelvinFromProgress(pct01);
         const intensity = intensityFromRGB(r, g, b);
-        const line =
-            `Progress: ${(pct01 * 100).toFixed(1)}% | Kelvin: ${kelvin}K | Intensity: ${intensity}% | RGB: ${r},${g},${b} | ColorInt: ${toColorInt(r, g, b)}`;
+        const line = `Progress: ${(pct01 * 100).toFixed(1)}% | Kelvin: ${kelvin}K | Intensity: ${intensity}% | RGB: ${r},${g},${b} | ColorInt: ${toColorInt(r, g, b)}`;
         logs = [...logs, line].slice(-400);
     }
-
-    // slider scrubbing
     function handleSliderInput(e) {
         const pct = Number(e.target.value);
         sliderPercent = pct;
@@ -187,36 +194,37 @@
         const pct01 = pct / 100;
         playProgress = pct01 * (STEP_COUNT - 1);
     }
-
-    // ---------- NEW: send color to LED daemon (debounced) ----------
-    let ledSendTimeout;
     async function sendColorToLed(r, g, b) {
-        // debounce: collect rapid changes in 80ms
-        if (ledSendTimeout) {
-            clearTimeout(ledSendTimeout);
-        }
+        if (ledSendTimeout) clearTimeout(ledSendTimeout);
         ledSendTimeout = setTimeout(async () => {
             try {
-                await fetch(LED_API_URL, {
+                await fetch('/api/led', {
                     method: 'POST',
                     headers: { 'content-type': 'application/json' },
                     body: JSON.stringify({ r, g, b })
                 });
-            } catch (err) {
-                // optional: log error
-                logs = [...logs, `LED update failed: ${err}`].slice(-400);
+            } catch (e) {
+                logs = [...logs, `[api] LED update failed: ${e}`].slice(-400);
             }
-        }, 80);
+        }, 60);
     }
-
-    // whenever playProgress changes, update background AND LED
+    async function turnOffLed() {
+        try {
+            await fetch('/api/led', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ cmd: 'off' })
+            });
+            logs = [...logs, '[api] sent off'].slice(-400);
+        } catch (e) {
+            logs = [...logs, `[api] off failed: ${e}`].slice(-400);
+        }
+    }
     $: currentBG = (() => {
         const { r, g, b } = getInterpolatedColor(playProgress);
-        // send to LED daemon too
         sendColorToLed(r, g, b);
         return `rgb(${r}, ${g}, ${b})`;
     })();
-
     $: currentSimIndex = Math.floor(playProgress);
 </script>
 
@@ -225,29 +233,29 @@
     <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
             <h1 class="text-3xl font-bold text-white">Sunrise simulation</h1>
-            <p class="text-sm text-white/80 mt-1">
-                Define RGB over time to simulate an LED sunrise.
-            </p>
+            <p class="text-sm text-white/80 mt-1">Define RGB over time to simulate an LED sunrise.</p>
         </div>
-        <div class="flex gap-3 items-center">
+        <div class="flex flex-wrap gap-3 items-center">
             <label class="flex items-center gap-2 text-sm text-white">
                 <span>Total time (min):</span>
-                <input
-                        type="number"
-                        min="1"
-                        bind:value={simulationMinutes}
-                        class="w-20 rounded bg-slate-900/70 border border-slate-700 px-2 py-1 text-white"
-                />
+                <input type="number" min="1" bind:value={simulationMinutes}
+                       class="w-20 rounded bg-slate-900/70 border border-slate-700 px-2 py-1 text-white" />
             </label>
-            <button
-                    on:click={togglePlay}
-                    class="inline-flex items-center gap-2 px-4 py-2 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold shadow"
-            >
-                {#if isPlaying}
-                    ⏸ Pause
-                {:else}
-                    ▶ Play
-                {/if}
+            <button on:click={togglePlay}
+                    class="inline-flex items-center gap-2 px-4 py-2 rounded bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-semibold shadow">
+                {#if isPlaying}⏸ Pause{:else}▶ Play{/if}
+            </button>
+            <button on:click={turnOffLed}
+                    class="inline-flex items-center gap-2 px-3 py-2 rounded bg-rose-500 hover:bg-rose-400 text-slate-950 font-semibold shadow">
+                ⏹ Off
+            </button>
+            <button on:click={savePreset}
+                    class="inline-flex items-center gap-2 px-3 py-2 rounded bg-sky-500 hover:bg-sky-400 text-slate-950 font-semibold shadow">
+                💾 Save preset
+            </button>
+            <button on:click={toggleStopFile}
+                    class="inline-flex items-center gap-2 px-3 py-2 rounded {stopFileExists ? 'bg-amber-500 hover:bg-amber-400' : 'bg-fuchsia-500 hover:bg-fuchsia-400'} text-slate-950 font-semibold shadow">
+                {#if stopFileExists}🗑 Delete STOP file{:else}🛑 Create STOP file{/if}
             </button>
         </div>
     </header>
@@ -270,13 +278,31 @@
     <!-- charts side-by-side -->
     <section class="flex gap-4 overflow-x-auto">
         <div class="flex-1 min-w-[300px]">
-            <ColorChannelChart title="Red channel" color="red" channel="red" {rows} on:channelChange={handleChannelChange} />
+            <ColorChannelChart
+                    title="Red channel"
+                    color="red"
+                    channel="red"
+                    {rows}
+                    on:channelChange={handleChannelChange}
+            />
         </div>
         <div class="flex-1 min-w-[300px]">
-            <ColorChannelChart title="Green channel" color="green" channel="green" {rows} on:channelChange={handleChannelChange} />
+            <ColorChannelChart
+                    title="Green channel"
+                    color="green"
+                    channel="green"
+                    {rows}
+                    on:channelChange={handleChannelChange}
+            />
         </div>
         <div class="flex-1 min-w-[300px]">
-            <ColorChannelChart title="Blue channel" color="blue" channel="blue" {rows} on:channelChange={handleChannelChange} />
+            <ColorChannelChart
+                    title="Blue channel"
+                    color="blue"
+                    channel="blue"
+                    {rows}
+                    on:channelChange={handleChannelChange}
+            />
         </div>
     </section>
 
@@ -300,20 +326,44 @@
                     <tr class={i === currentSimIndex ? 'bg-slate-800/40' : ''}>
                         <td class="px-3 py-1">{i + 1}</td>
                         <td class="px-3 py-1">
-                            <input type="number" class="w-20 bg-slate-950/40 border border-slate-700 rounded px-1 text-white"
-                                   value={row.time} on:change={(e) => handleTimeChange(i, e.target.value)} min="0" max="100" />
+                            <input
+                                    type="number"
+                                    class="w-20 bg-slate-950/40 border border-slate-700 rounded px-1 text-white"
+                                    value={row.time}
+                                    on:change={(e) => handleTimeChange(i, e.target.value)}
+                                    min="0"
+                                    max="100"
+                            />
                         </td>
                         <td class="px-3 py-1">
-                            <input type="number" class="w-20 bg-slate-950/40 border border-slate-700 rounded px-1 text-red-200"
-                                   value={row.red} min="0" max="255" on:input={(e) => handleTableChange(i, 'red', e.target.value)} />
+                            <input
+                                    type="number"
+                                    class="w-20 bg-slate-950/40 border border-slate-700 rounded px-1 text-red-200"
+                                    value={row.red}
+                                    min="0"
+                                    max="255"
+                                    on:input={(e) => handleTableChange(i, 'red', e.target.value)}
+                            />
                         </td>
                         <td class="px-3 py-1">
-                            <input type="number" class="w-20 bg-slate-950/40 border border-slate-700 rounded px-1 text-green-200"
-                                   value={row.green} min="0" max="255" on:input={(e) => handleTableChange(i, 'green', e.target.value)} />
+                            <input
+                                    type="number"
+                                    class="w-20 bg-slate-950/40 border border-slate-700 rounded px-1 text-green-200"
+                                    value={row.green}
+                                    min="0"
+                                    max="255"
+                                    on:input={(e) => handleTableChange(i, 'green', e.target.value)}
+                            />
                         </td>
                         <td class="px-3 py-1">
-                            <input type="number" class="w-20 bg-slate-950/40 border border-slate-700 rounded px-1 text-blue-200"
-                                   value={row.blue} min="0" max="255" on:input={(e) => handleTableChange(i, 'blue', e.target.value)} />
+                            <input
+                                    type="number"
+                                    class="w-20 bg-slate-950/40 border border-slate-700 rounded px-1 text-blue-200"
+                                    value={row.blue}
+                                    min="0"
+                                    max="255"
+                                    on:input={(e) => handleTableChange(i, 'blue', e.target.value)}
+                            />
                         </td>
                         <td class="px-3 py-1">{row.kelvin}</td>
                         <td class="px-3 py-1">{row.intensity}</td>
@@ -333,3 +383,4 @@
         >{logs.join('\n')}</textarea>
     </section>
 </div>
+

@@ -1,143 +1,288 @@
-/**
- * Corrected Node.js script fixing the RGB assignment issue using array destructuring.
- */
+// index.js
+// Sunrise RGB simulation with exact total duration matching --minutes.
+// Continuously checks for `STOP` file; will not exit before it exists.
+// If `STOP` appears during the sunrise loop, the simulation aborts early and proceeds to fade out.
 
 import ws281x from 'rpi-ws281x-native';
-import chroma from 'chroma-js';
 import fetch from 'node-fetch';
+import fs from 'fs';
+import path from 'path';
+
+/** @typedef {{time:number, red:number, green:number, blue:number}} Keyframe */
+/** @typedef {{minutes?:number, delay?:number, help:boolean}} CliArgs */
 
 const LEDS = 300;
-
 const options = {
-    dma: 10,
-    freq: 800000,
-    gpio: 18,
-    invert: false,
-    brightness: 255,
-    stripType: ws281x.stripType.WS2812
+  dma: 10,
+  freq: 800000,
+  gpio: 18,
+  invert: false,
+  brightness: 255,
+  stripType: ws281x.stripType.WS2812
 };
 
 const channel = ws281x(LEDS, options);
+/** @type {Uint32Array} */
 const pixels = channel.array;
 
-console.log("ws281x configured successfully.");
+console.log('ws281x configured successfully.');
 
-function wait(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
+const presetPath = path.resolve(process.cwd(), 'sunrise-preset.json');
+const stopFilePath = path.resolve(process.cwd(), 'STOP');
 
-function lerp(start, end, t) {
-    return start * (1 - t) + end * t;
-}
-
-function rgbToInt(r, g, b) {
-    return ((0x00 & 0xFF) << 24) | ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | (b & 0xFF);
-}
-
-const sunriseKeyframesKelvin = [
-    { time: 0, kelvin: 1800, intensity: 0.0 },
-    { time: 5, kelvin: 1900, intensity: 0.05 },
-    { time: 10, kelvin: 2000, intensity: 0.05 },
-    { time: 15, kelvin: 2100, intensity: 0.05 },
-    { time: 20, kelvin: 2200, intensity: 0.05 },
-    { time: 25, kelvin: 2300, intensity: 0.05 },
-    { time: 30, kelvin: 2400, intensity: 0.1 },
-    { time: 35, kelvin: 2500, intensity: 0.1 },
-    { time: 40, kelvin: 2700, intensity: 0.1 },
-    { time: 45, kelvin: 2800, intensity: 0.15 },
-    { time: 50, kelvin: 3000, intensity: 0.2 },
-    { time: 55, kelvin: 3200, intensity: 0.3 },
-    { time: 60, kelvin: 3500, intensity: 0.35 },
-    { time: 65, kelvin: 3700, intensity: 0.40 },
-    { time: 70, kelvin: 4000, intensity: 0.45 },
-    { time: 75, kelvin: 4200, intensity: 0.50 },
-    { time: 80, kelvin: 4400, intensity: 0.55 },
-    { time: 85, kelvin: 4600, intensity: 0.6 },
-    { time: 90, kelvin: 4800, intensity: 0.7 },
-    { time: 95, kelvin: 5000, intensity: 0.8 },
-    { time: 100, kelvin: 6000, intensity: 1.0 }
-];
-
-function calculateCurrentColorAndIntensity(progress) {
-    let startFrame, endFrame;
-
-    for (let i = 0; i < sunriseKeyframesKelvin.length - 1; i++) {
-        if (progress >= sunriseKeyframesKelvin[i].time && progress <= sunriseKeyframesKelvin[i + 1].time) {
-            startFrame = sunriseKeyframesKelvin[i];
-            endFrame = sunriseKeyframesKelvin[i + 1];
-            break;
-        }
+/**
+ * Parse CLI arguments.
+ * @returns {CliArgs}
+ */
+function parseArgs() {
+  const args = process.argv.slice(2);
+  /** @type {CliArgs} */
+  const result = { help: false };
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === '--help' || a === '-h') {
+      result.help = true;
+    } else if (a === '--minutes' || a === '-m') {
+      const v = Number(args[++i]);
+      if (!Number.isFinite(v) || v <= 0) { console.error('Invalid value for --minutes'); process.exit(1); }
+      result.minutes = v;
+    } else if (a === '--delay' || a === '-d') {
+      const v = Number(args[++i]);
+      if (!Number.isFinite(v) || v <= 0) { console.error('Invalid value for --delay'); process.exit(1); }
+      result.delay = v;
+    } else {
+      console.warn(`Ignoring unknown argument: ${a}`);
     }
-
-    if (!startFrame || !endFrame) {
-        const frame = progress <= 0 ? sunriseKeyframesKelvin[0] : sunriseKeyframesKelvin[sunriseKeyframesKelvin.length - 1];
-        return { kelvin: frame.kelvin, intensity: frame.intensity };
-    }
-
-    const segmentDuration = endFrame.time - startFrame.time;
-    const timeInSegment = progress - startFrame.time;
-    const t = segmentDuration > 0 ? (timeInSegment / segmentDuration) : 0;
-
-    const currentKelvin = lerp(startFrame.kelvin, endFrame.kelvin, t);
-    const currentIntensity = lerp(startFrame.intensity, endFrame.intensity, t);
-
-    return { kelvin: currentKelvin, intensity: currentIntensity };
+  }
+  return result;
 }
 
-// --- Main Sunrise Loop ---
+/** Print help. */
+function printHelp() {
+  console.log(`
+Sunrise RGB Simulation
+----------------------
+Flags:
+  --minutes, -m <number>   Total duration in minutes
+  --delay,   -d <ms>       Requested delay per step (may be adjusted)
+  --help,    -h            Show this help
 
+Env:
+  SUNRISE_MINUTES
+  SUNRISE_DELAY_MS
+
+Stop condition:
+  Script monitors file: ${stopFilePath} (required before shutdown)
+
+Example:
+  node index.js --minutes 15 --delay 40
+`);
+}
+
+/**
+ * Clamp to 0..255.
+ * @param {number} v
+ * @returns {number}
+ */
+function clamp255(v) {
+  v = Number(v);
+  return Number.isFinite(v) ? Math.min(255, Math.max(0, Math.round(v))) : 0;
+}
+
+/**
+ * Sleep.
+ * @param {number} ms
+ * @returns {Promise<void>}
+ */
+function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+/**
+ * Linear interpolation.
+ * @param {number} a
+ * @param {number} b
+ * @param {number} t
+ * @returns {number}
+ */
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+/**
+ * Pack RGB into 32-bit int.
+ * @param {number} r
+ * @param {number} g
+ * @param {number} b
+ * @returns {number}
+ */
+function rgbToInt(r, g, b) { return ((0x00 & 0xFF) << 24) | ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | (b & 0xFF); }
+
+/**
+ * Interpolate RGB given progress 0..100.
+ * @param {number} progressPercent
+ * @returns {{r:number,g:number,b:number}}
+ */
+function interpolateRGB(progressPercent) {
+  let start = sunriseKeyframes[0];
+  let end = sunriseKeyframes[sunriseKeyframes.length - 1];
+  for (let i = 0; i < sunriseKeyframes.length - 1; i++) {
+    const a = sunriseKeyframes[i];
+    const b = sunriseKeyframes[i + 1];
+    if (progressPercent >= a.time && progressPercent <= b.time) { start = a; end = b; break; }
+  }
+  if (start === end || end.time === start.time) return { r: start.red, g: start.green, b: start.blue };
+  const t = (progressPercent - start.time) / (end.time - start.time);
+  return {
+    r: Math.round(lerp(start.red, end.red, t)),
+    g: Math.round(lerp(start.green, end.green, t)),
+    b: Math.round(lerp(start.blue, end.blue, t))
+  };
+}
+
+/**
+ * Format elapsed ms as mm:ss.mmm
+ * @param {number} ms
+ * @returns {string}
+ */
+function formatElapsed(ms) {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  const millis = Math.floor(ms % 1000);
+  return `${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}.${String(millis).padStart(3,'0')}`;
+}
+
+/**
+ * Wait until STOP file exists (poll every second).
+ * @returns {Promise<void>}
+ */
+async function waitForStopFile() {
+  if (fs.existsSync(stopFilePath)) return;
+  console.log(`Waiting for STOP file: ${stopFilePath}`);
+  while (!fs.existsSync(stopFilePath)) {
+    await wait(1000);
+  }
+  console.log('STOP file detected.');
+}
+
+const cli = parseArgs();
+if (cli.help) { printHelp(); process.exit(0); }
+
+/** @type {Keyframe[]} */
+let sunriseKeyframes = [];
+let totalSunriseMinutes = 1;
+let requestedDelayMs = 50;
+
+try {
+  const raw = fs.readFileSync(presetPath, 'utf-8');
+  const parsed = JSON.parse(raw);
+  if (typeof parsed !== 'object' || parsed === null) throw new Error('Preset root must be an object');
+  if (!Array.isArray(parsed.rows)) throw new Error('Preset missing rows array');
+  if (Number(parsed.simulationMinutes) > 0) totalSunriseMinutes = Number(parsed.simulationMinutes);
+
+  sunriseKeyframes = parsed.rows
+    .filter(
+      /** @param {any} f */ (f) =>
+        typeof f.time === 'number' &&
+        typeof f.red === 'number' &&
+        typeof f.green === 'number' &&
+        typeof f.blue === 'number'
+    )
+    .map(
+      /** @param {any} f */ (f) => ({
+        time: Math.min(100, Math.max(0, f.time)),
+        red: clamp255(f.red),
+        green: clamp255(f.green),
+        blue: clamp255(f.blue)
+      })
+    )
+    .sort(
+      /** @param {Keyframe} a @param {Keyframe} b */ (a, b) => a.time - b.time
+    );
+
+  if (sunriseKeyframes.length === 0) throw new Error('No valid keyframes');
+  if (sunriseKeyframes[0].time > 0) {
+    const first = sunriseKeyframes[0];
+    sunriseKeyframes.unshift({ time: 0, red: first.red, green: first.green, blue: first.blue });
+  }
+  if (sunriseKeyframes[sunriseKeyframes.length - 1].time < 100) {
+    const last = sunriseKeyframes[sunriseKeyframes.length - 1];
+    sunriseKeyframes.push({ time: 100, red: last.red, green: last.green, blue: last.blue });
+  }
+} catch (e) {
+  console.error('Failed to load sunrise RGB preset:', e instanceof Error ? e.message : String(e));
+  process.exit(1);
+}
+
+// Env overrides
+const envMinutes = Number(process.env.SUNRISE_MINUTES);
+if (Number.isFinite(envMinutes) && envMinutes > 0) totalSunriseMinutes = envMinutes;
+const envDelay = Number(process.env.SUNRISE_DELAY_MS);
+if (Number.isFinite(envDelay) && envDelay > 0) requestedDelayMs = envDelay;
+// CLI overrides
+if (cli.minutes) totalSunriseMinutes = cli.minutes;
+if (cli.delay) requestedDelayMs = cli.delay;
+
+// Duration math
+const targetDurationMs = totalSunriseMinutes * 60 * 1000;
+let steps = Math.max(1, Math.round(targetDurationMs / requestedDelayMs));
+const actualDelayMs = targetDurationMs / steps;
+
+console.log(`Loaded ${sunriseKeyframes.length} keyframes. Target: ${totalSunriseMinutes} min (${targetDurationMs} ms). Requested delay: ${requestedDelayMs} ms. Steps: ${steps}. Adjusted delay: ${actualDelayMs.toFixed(3)} ms. STOP file: ${stopFilePath}`);
 
 (async () => {
-    const totalSunriseMinutes = 1;
-    const totalSteps = totalSunriseMinutes * 60 * 20;
-    const delayPerStep = 50;
+  let audio_started = false;
+  const startHr = process.hrtime.bigint();
+  let stopDetectedDuringLoop = false;
 
-    let audio_started = false;
+  console.log('Starting sunrise...');
 
-    console.log(`Starting KELVIN-based sunrise simulation over ${totalSunriseMinutes} minute(s)...`);
-
-    for (let step = 0; step <= totalSteps; step++) {
-        const progressPercent = (step / totalSteps) * 100;
-
-        const { kelvin, intensity } = calculateCurrentColorAndIntensity(progressPercent);
-
-        // Use chroma-js to convert Kelvin to RGB array [r, g, b]
-        const rgbColorArray = chroma.kelvin(kelvin).rgb();
-
-        // --- FIX IS HERE: Use array destructuring for correct assignment ---
-        let [r, g, b] = rgbColorArray;
-        // ------------------------------------------------------------------
-
-        // Apply intensity scaling (dimming effect)
-        r = Math.round(r * intensity);
-        g = Math.round(g * intensity);
-        b = Math.round(b * intensity);
-
-        const colorInt = rgbToInt(r, g, b);
-
-        // Clear the entire strip every cycle
-        pixels.fill(colorInt);
-
-        if (progressPercent > 50 && !audio_started) {
-            const response = await fetch('http://sunriseaudio:5000/fadein');
-            const data = await response.json();
-            console.log(`Audio fade-in response: ${JSON.stringify(data)}`);
-            audio_started = true;
-        }
-
-        console.log(`Progress: ${progressPercent.toFixed(1)}% | Kelvin: ${kelvin.toFixed(0)}K | Intensity: ${(intensity*100).toFixed(0)}% | RGB: ${r},${g},${b} | ColorInt: 0x${colorInt.toString(16).toUpperCase().padStart(8, '0')}`);
-
-        ws281x.render(pixels);
-
-        if (step < totalSteps) {
-            await wait(delayPerStep);
-        }
+  for (let step = 0; step <= steps; step++) {
+    // Continuous STOP check
+    if (fs.existsSync(stopFilePath)) {
+      stopDetectedDuringLoop = true;
+      console.log('STOP file detected during sunrise loop. Aborting remaining steps.');
+      break;
     }
 
-    console.log("Sunrise simulation complete.");
+    const progressPercent = (step / steps) * 100;
+    const { r, g, b } = interpolateRGB(progressPercent);
+    const colorInt = rgbToInt(r, g, b);
+    pixels.fill(colorInt);
+
+    if (progressPercent > 95 && !audio_started) {
+      try {
+        const response = await fetch('http://sunriseaudio:5000/fadein');
+        const data = await response.json().catch(() => ({}));
+        console.log(`Audio fade-in response: ${JSON.stringify(data)}`);
+      } catch (e) {
+        console.warn('Audio fade-in request failed:', e instanceof Error ? e.message : String(e));
+      }
+      audio_started = true;
+    }
+
+    const elapsedMs = Number(process.hrtime.bigint() - startHr) / 1e6;
+    console.log(
+      `Progress: ${progressPercent.toFixed(2)}% | Time: ${formatElapsed(elapsedMs)} | RGB: ${r},${g},${b} | ColorInt: 0x${colorInt
+        .toString(16)
+        .toUpperCase()
+        .padStart(8, '0')}`
+    );
+
+    ws281x.render(); // typings expect no args
+    if (step < steps) await wait(actualDelayMs);
+  }
+
+  if (!stopDetectedDuringLoop) {
+    console.log('Sunrise loop finished. Awaiting STOP file before shutdown.');
+    await waitForStopFile();
+  }
+
+  try {
     const response = await fetch('http://sunriseaudio:5000/fadeout');
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
     console.log(`Audio fade-out response: ${JSON.stringify(data)}`);
-    audio_started = false;
-    ws281x.reset();
+  } catch (e) {
+    console.warn('Audio fade-out request failed:', e instanceof Error ? e.message : String(e));
+  }
+
+  ws281x.reset();
+  console.log('Shutdown after STOP file detected.');
 })();

@@ -4,14 +4,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite dev",
+    "dev": "vite dev --host",
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json"
   },
   "devDependencies": {
     "@sveltejs/adapter-auto": "3.3.1",
+    "@sveltejs/adapter-node": "^5.4.0",
     "@sveltejs/kit": "2.48.4",
+    "@types/rpi-ws281x-native": "^1.0.3",
     "autoprefixer": "10.4.20",
     "postcss": "8.4.49",
     "svelte": "5.1.15",
@@ -23,6 +25,8 @@
   "dependencies": {
     "chroma-js": "^3.1.2",
     "node-fetch": "^3.3.2",
-    "rpi-ws281x-native": "^1.0.4"
+    "npm-run-all2": "^8.0.4",
+    "rpi-ws281x-native": "^1.0.4",
+    "ws": "^8.18.3"
   }
 }
