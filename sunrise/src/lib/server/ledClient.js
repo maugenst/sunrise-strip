@@ -7,6 +7,8 @@ let ws;
 let connected = false;
 let queue = [];
 let reconnectTimer;
+let responseHandlers = new Map();
+let messageId = 0;
 
 /**
  * Establish / re-establish connection to the daemon.
@@ -55,6 +57,26 @@ function connect() {
     ws.on('message', (data) => {
         // optional: log or handle daemon messages
         console.log('[ledClient] daemon:', data.toString());
+        
+        try {
+            const response = JSON.parse(data.toString());
+            // Resolve any pending promise handlers based on response type
+            if (response.type === 'alarm' || response.type === 'alarmSet' || response.type === 'alarmDeleted') {
+                const handlers = Array.from(responseHandlers.entries());
+                for (const [id, handler] of handlers) {
+                    if (handler.type === response.type || 
+                        (handler.type === 'alarm' && response.type === 'alarm') ||
+                        (handler.type === 'setAlarm' && response.type === 'alarmSet') ||
+                        (handler.type === 'deleteAlarm' && response.type === 'alarmDeleted')) {
+                        handler.resolve(response);
+                        responseHandlers.delete(id);
+                        break;
+                    }
+                }
+            }
+        } catch (e) {
+            // ignore parse errors
+        }
     });
 }
 
@@ -75,6 +97,30 @@ function send(msg) {
     }
 }
 
+/**
+ * Send a message and wait for a response
+ */
+function sendAndWait(msg, expectedType, timeout = 5000) {
+    return new Promise((resolve, reject) => {
+        const id = ++messageId;
+        
+        const timer = setTimeout(() => {
+            responseHandlers.delete(id);
+            reject(new Error('Timeout waiting for response'));
+        }, timeout);
+        
+        responseHandlers.set(id, {
+            type: expectedType,
+            resolve: (response) => {
+                clearTimeout(timer);
+                resolve(response);
+            }
+        });
+        
+        send(msg);
+    });
+}
+
 export function setColor(r, g, b) {
     send({ cmd: 'set', r, g, b });
 }
@@ -89,4 +135,47 @@ export function getStatus() {
         daemonUrl: DAEMON_URL,
         queued: queue.length
     };
+}
+
+/**
+ * Get current alarm from crontab via daemon
+ */
+export async function getAlarm() {
+    try {
+        const response = await sendAndWait({ cmd: 'getAlarm' }, 'alarm');
+        return response;
+    } catch (e) {
+        console.error('[ledClient] getAlarm error:', e.message);
+        return { ok: false, error: e.message };
+    }
+}
+
+/**
+ * Set alarm in crontab via daemon
+ */
+export async function setAlarm(hour, minute, enabled = true, command = null) {
+    try {
+        const msg = { cmd: 'setAlarm', hour, minute, enabled };
+        if (command) {
+            msg.command = command;
+        }
+        const response = await sendAndWait(msg, 'setAlarm');
+        return response;
+    } catch (e) {
+        console.error('[ledClient] setAlarm error:', e.message);
+        return { ok: false, error: e.message };
+    }
+}
+
+/**
+ * Delete alarm from crontab via daemon
+ */
+export async function deleteAlarm() {
+    try {
+        const response = await sendAndWait({ cmd: 'deleteAlarm' }, 'deleteAlarm');
+        return response;
+    } catch (e) {
+        console.error('[ledClient] deleteAlarm error:', e.message);
+        return { ok: false, error: e.message };
+    }
 }

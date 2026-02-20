@@ -230,6 +230,13 @@
 
 <div class="min-h-screen flex flex-col gap-6 p-6"
      style={`background: radial-gradient(circle, ${currentBG} 0%, #020617 65%); color: #fff;`}>
+    <!-- Navigation -->
+    <nav class="flex gap-4 mb-2">
+        <a href="/alarm" class="px-4 py-2 rounded bg-amber-600 hover:bg-amber-500 text-white font-medium transition flex items-center gap-2">
+            ⏰ Set Alarm
+        </a>
+    </nav>
+
     <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
             <h1 class="text-3xl font-bold text-white">Sunrise simulation</h1>
