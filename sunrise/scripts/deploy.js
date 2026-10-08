@@ -53,9 +53,13 @@ console.log('\n── Step 1: Check local state ──────────�
 
 process.chdir(REPO_ROOT);
 
-const localDirty = capture('git status --porcelain');
+// Only check tracked file changes (staged + unstaged), not untracked files.
+// Untracked files that aren't gitignored are the user's business, not a deploy blocker.
+const localDirty = capture('git status --porcelain').split('\n')
+    .filter(l => l && !l.startsWith('??'))
+    .join('\n');
 if (localDirty) {
-    console.error('✖ You have uncommitted local changes. Commit or stash them first.');
+    console.error('✖ You have uncommitted changes to tracked files. Commit them first.');
     console.error(localDirty);
     process.exit(1);
 }
