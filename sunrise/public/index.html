@@ -121,7 +121,29 @@
     }
     .nav-link:hover { color: var(--text); background: var(--surface-2); }
 
-    /* Saving spinner */
+    /* Sunrise running indicator */
+    .sunrise-running-section {
+      padding: .75rem 1.5rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      background: rgba(249,115,22,.06);
+      animation: pulse-bg 2s ease-in-out infinite;
+    }
+    @keyframes pulse-bg {
+      0%, 100% { background: rgba(249,115,22,.06); }
+      50%       { background: rgba(249,115,22,.12); }
+    }
+    .sunrise-running-label {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      font-size: .875rem;
+      font-weight: 600;
+      color: var(--primary);
+    }
     @keyframes spin { to { transform: rotate(360deg); } }
     .saving #saveBtn { opacity: .6; pointer-events: none; }
     .saving #saveBtn::before {
@@ -191,6 +213,17 @@
         <input type="checkbox" id="alarmToggle">
         <div class="toggle-track"></div>
       </label>
+    </div>
+
+    <!-- Sunrise running — stop section (hidden until sunrise is active) -->
+    <div id="sunriseRunningSection" class="sunrise-running-section" style="display:none">
+      <div class="sunrise-running-label">
+        <span style="font-size:1.1rem">🌅</span>
+        Sunrise is running…
+      </div>
+      <button id="stopSunriseBtn" class="btn btn-danger btn-sm" onclick="stopSunrise()">
+        ⏹ Stop
+      </button>
     </div>
 
     <!-- Actions -->
@@ -302,7 +335,37 @@
 
   function pad(n) { return String(n).padStart(2, '0'); }
 
-  document.addEventListener('DOMContentLoaded', loadAlarm);
+  // ── Sunrise status polling ───────────────────────────────────────────────
+
+  async function checkSunriseStatus() {
+    try {
+      const res = await fetch('/api/stop');
+      const data = await res.json().catch(() => ({}));
+      const running = !!data.running;
+      document.getElementById('sunriseRunningSection').style.display = running ? 'flex' : 'none';
+    } catch {}
+  }
+
+  async function stopSunrise() {
+    try {
+      const res = await fetch('/api/stop', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        showToast('Sunrise stopped', 'success');
+        document.getElementById('sunriseRunningSection').style.display = 'none';
+      } else {
+        showToast('Failed to stop sunrise', 'error');
+      }
+    } catch (e) {
+      showToast('Network error', 'error');
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    loadAlarm();
+    checkSunriseStatus();
+    setInterval(checkSunriseStatus, 5000);
+  });
 </script>
 
 </body>
