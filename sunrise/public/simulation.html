@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#020617">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Sunrise Simulation</title>
+  <link rel="stylesheet" href="/app.css">
+  <style>
+    /* ── Simulation-specific layout ── */
+    body {
+      transition: background .15s ease;
+      padding-bottom: 2rem;
+    }
+
+    .sim-page {
+      padding-top: calc(52px + 1rem);
+      padding-inline: 1rem;
+      max-width: 1100px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    /* ── Controls bar ── */
+    .controls-bar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: .6rem;
+    }
+    .controls-bar .divider-v {
+      width: 1px;
+      height: 1.5rem;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+    .minutes-group {
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      font-size: .8rem;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+    .minutes-group input { width: 4.5rem; text-align: right; }
+
+    /* ── Scrubber ── */
+    .scrubber-section {
+      display: flex;
+      flex-direction: column;
+      gap: .35rem;
+    }
+    .scrubber-row {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+    }
+    .scrubber-row input { flex: 1; }
+    #scrubLabel {
+      font-variant-numeric: tabular-nums;
+      font-size: .78rem;
+      color: var(--text-dim);
+      min-width: 3rem;
+      text-align: right;
+    }
+
+    /* ── Charts row ── */
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: .75rem;
+      min-width: 0;
+    }
+    @media (max-width: 700px) {
+      .charts-grid { grid-template-columns: 1fr; }
+    }
+
+    .chart-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: .35rem;
+    }
+    .chart-title {
+      font-size: .78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .07em;
+    }
+    .chart-range {
+      font-size: .7rem;
+      color: var(--text-dim);
+    }
+
+    /* color-coded chart titles */
+    .chart-red   .chart-title { color: #f43f5e; }
+    .chart-green .chart-title { color: #22c55e; }
+    .chart-blue  .chart-title { color: #3b82f6; }
+
+    /* ── Table section ── */
+    .table-card {
+      overflow: hidden;
+    }
+    .table-card .scroll-x {
+      max-height: 260px;
+      overflow-y: auto;
+    }
+    .table-card .scroll-x::-webkit-scrollbar { width: 6px; }
+    .table-card .scroll-x::-webkit-scrollbar-track { background: var(--surface); }
+    .table-card .scroll-x::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    .data-table th { position: sticky; top: 0; z-index: 1; }
+    .data-table .input[type="number"] {
+      width: 4.5rem; padding: .25rem .4rem; font-size: .8rem; background: transparent;
+    }
+    .px-sm { padding: .3rem .5rem; }
+    .text-muted { color: var(--text-muted); }
+
+    /* ── Console ── */
+    .console-section { display: flex; flex-direction: column; gap: .4rem; }
+    #logOutput { height: 140px; }
+
+    /* ── Bottom padding on mobile ── */
+    @media (max-width: 480px) {
+      .controls-bar { gap: .45rem; }
+      .controls-bar .divider-v { display: none; }
+      .btn-sm { font-size: .75rem; padding: .3rem .6rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Top bar -->
+<nav class="topbar">
+  <a href="/" class="btn btn-ghost btn-sm" title="Back to alarm" aria-label="Alarm">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+    </svg>
+  </a>
+  <span class="topbar-title">Sunrise Simulation</span>
+  <a href="/visualizer" class="btn btn-ghost btn-sm" title="Open LED Visualizer" aria-label="Visualizer" id="daemonStatus">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+    </svg>
+  </a>
+</nav>
+
+<main class="sim-page">
+
+  <!-- Controls -->
+  <div class="controls-bar">
+    <button id="playBtn" class="btn btn-success btn-sm">▶ Play</button>
+
+    <button id="ledOffBtn" class="btn btn-danger btn-sm">⏹ Off</button>
+
+    <div class="divider-v"></div>
+
+    <div class="minutes-group">
+      <label for="simMinutes">Duration</label>
+      <input id="simMinutes" type="number" class="input" min="1" max="120" value="15">
+      <span>min</span>
+    </div>
+
+    <div class="divider-v"></div>
+
+    <button id="savePresetBtn" class="btn btn-info btn-sm">💾 Save preset</button>
+
+    <button id="stopSunriseBtn" class="btn btn-ghost btn-sm" disabled style="opacity:.45">
+      — No sunrise running
+    </button>
+  </div>
+
+  <!-- Scrubber -->
+  <div class="scrubber-section">
+    <span class="section-label">Scrub time</span>
+    <div class="scrubber-row">
+      <input id="scrubber" type="range" class="input" min="0" max="100" step="0.1" value="0" aria-label="Scrub time">
+      <span id="scrubLabel">0.0%</span>
+    </div>
+  </div>
+
+  <!-- RGB Charts -->
+  <div class="charts-grid">
+
+    <div class="chart-wrap chart-red">
+      <div class="chart-header">
+        <span class="chart-title">Red</span>
+        <span class="chart-range">0 – 255</span>
+      </div>
+      <svg id="chartRed" viewBox="0 0 600 160" preserveAspectRatio="xMidYMid meet" aria-label="Red channel curve"></svg>
+      <p style="font-size:.7rem; color:var(--text-dim);">Drag points to edit</p>
+    </div>
+
+    <div class="chart-wrap chart-green">
+      <div class="chart-header">
+        <span class="chart-title">Green</span>
+        <span class="chart-range">0 – 255</span>
+      </div>
+      <svg id="chartGreen" viewBox="0 0 600 160" preserveAspectRatio="xMidYMid meet" aria-label="Green channel curve"></svg>
+      <p style="font-size:.7rem; color:var(--text-dim);">Drag points to edit</p>
+    </div>
+
+    <div class="chart-wrap chart-blue">
+      <div class="chart-header">
+        <span class="chart-title">Blue</span>
+        <span class="chart-range">0 – 255</span>
+      </div>
+      <svg id="chartBlue" viewBox="0 0 600 160" preserveAspectRatio="xMidYMid meet" aria-label="Blue channel curve"></svg>
+      <p style="font-size:.7rem; color:var(--text-dim);">Drag points to edit</p>
+    </div>
+
+  </div>
+
+  <!-- Data table -->
+  <div class="card table-card">
+    <div class="scroll-x">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Time %</th>
+            <th style="color:#f43f5e">Red</th>
+            <th style="color:#22c55e">Green</th>
+            <th style="color:#3b82f6">Blue</th>
+            <th>Kelvin</th>
+            <th>Intensity</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Console -->
+  <div class="console-section">
+    <span class="section-label">Output</span>
+    <textarea id="logOutput" class="console" readonly placeholder="Simulation output will appear here…"></textarea>
+  </div>
+
+</main>
+
+<!-- Toast -->
+<div class="toast-container" id="toasts" aria-live="polite"></div>
+
+<script type="module" src="/simulation.js"></script>
+
+</body>
+</html>

@@ -52,9 +52,9 @@ lerna-debug.log*
 .tmp
 
 
-# sunrise->Vite
-vite.config.js.timestamp-*
-vite.config.ts.timestamp-*
+# screenshot artifacts from playwright
+*.png
+.playwright-mcp/
 
 # OS
 .DS_Store

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0a0f1e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Sunrise Alarm</title>
+  <link rel="stylesheet" href="/app.css">
+  <style>
+    /* ── Page-specific ── */
+    .alarm-card {
+      width: min(420px, 100%);
+    }
+
+    .time-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: .75rem;
+      padding: 1.75rem 1.5rem;
+    }
+
+    .time-label {
+      font-size: .7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .1em;
+      color: var(--text-dim);
+    }
+
+    .time-input {
+      font-size: 3rem;
+      font-weight: 800;
+      letter-spacing: .05em;
+      text-align: center;
+      padding: .75rem 1.25rem;
+      color-scheme: dark;
+      background: var(--bg);
+      border: 1px solid var(--border-light);
+      border-radius: var(--radius);
+      color: var(--text);
+      width: 100%;
+      cursor: pointer;
+      transition: border-color var(--transition), box-shadow var(--transition);
+      -webkit-tap-highlight-color: transparent;
+    }
+    .time-input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-glow);
+    }
+
+    .toggle-section {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1rem 1.5rem;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .toggle-label-group {
+      display: flex;
+      flex-direction: column;
+      gap: .15rem;
+    }
+
+    .alarm-status {
+      font-size: .85rem;
+      font-weight: 600;
+      transition: color var(--transition);
+    }
+    .alarm-status.on  { color: var(--primary); }
+    .alarm-status.off { color: var(--text-dim); }
+
+    .actions-section {
+      padding: 1rem 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: .75rem;
+    }
+
+    .status-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 1.5rem;
+    }
+
+    #statusMsg {
+      font-size: .8rem;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    .header-section {
+      padding: 1.75rem 1.5rem 1rem;
+      text-align: center;
+    }
+    .header-section .sun-svg {
+      width: 2.5rem;
+      height: 2.5rem;
+      color: var(--primary);
+      margin-bottom: .6rem;
+    }
+    .header-section h1 { font-size: 1.5rem; }
+    .header-section p  { font-size: .875rem; margin-top: .25rem; }
+
+    .nav-link {
+      font-size: .8rem;
+      color: var(--text-dim);
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: .35rem;
+      padding: .3rem .6rem;
+      border-radius: var(--radius-sm);
+      transition: color var(--transition), background var(--transition);
+    }
+    .nav-link:hover { color: var(--text); background: var(--surface-2); }
+
+    /* Saving spinner */
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .saving #saveBtn { opacity: .6; pointer-events: none; }
+    .saving #saveBtn::before {
+      content: '';
+      display: inline-block;
+      width: .9rem; height: .9rem;
+      border: 2px solid rgba(255,255,255,.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      margin-right: .4rem;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Top bar -->
+<nav class="topbar">
+  <div class="topbar-spacer"></div>
+  <span class="topbar-title">Sunrise</span>
+  <a href="/simulation" class="btn btn-ghost btn-sm" title="Open Simulation editor" aria-label="Simulation">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+    </svg>
+  </a>
+  <a href="/visualizer" class="btn btn-ghost btn-sm" title="Open LED Visualizer" aria-label="Visualizer">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/>
+    </svg>
+  </a>
+</nav>
+
+<!-- Main content -->
+<main class="page-center">
+  <div class="alarm-card card stack">
+
+    <!-- Header -->
+    <div class="header-section">
+      <svg class="sun-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="5"/>
+        <line x1="12" y1="1"  x2="12" y2="3"/>
+        <line x1="12" y1="21" x2="12" y2="23"/>
+        <line x1="4.22" y1="4.22"  x2="5.64" y2="5.64"/>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+        <line x1="1"  y1="12" x2="3"  y2="12"/>
+        <line x1="21" y1="12" x2="23" y2="12"/>
+        <line x1="4.22"  y1="19.78" x2="5.64"  y2="18.36"/>
+        <line x1="18.36" y1="5.64"  x2="19.78" y2="4.22"/>
+      </svg>
+      <h1>Sunrise Alarm</h1>
+      <p>Wake up gently with light &amp; sound</p>
+    </div>
+
+    <!-- Time picker -->
+    <div class="time-section">
+      <span class="time-label">Wake-up time</span>
+      <input id="timeInput" type="time" class="time-input" value="07:00" aria-label="Alarm time">
+    </div>
+
+    <!-- Toggle -->
+    <div class="toggle-section">
+      <div class="toggle-label-group">
+        <span class="text-sm" style="font-weight:600">Alarm enabled</span>
+        <span id="alarmStatus" class="alarm-status off">OFF</span>
+      </div>
+      <label class="toggle-wrapper" aria-label="Enable alarm">
+        <input type="checkbox" id="alarmToggle">
+        <div class="toggle-track"></div>
+      </label>
+    </div>
+
+    <!-- Actions -->
+    <div class="actions-section">
+      <button id="saveBtn" class="btn btn-primary btn-lg w-full" onclick="saveAlarm()">
+        Save alarm
+      </button>
+      <div class="status-row">
+        <span id="statusMsg"></span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer nav -->
+  <div style="margin-top:1.25rem; display:flex; flex-direction:column; align-items:center; gap:.5rem;">
+    <a href="/simulation" class="nav-link">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+      </svg>
+      Edit sunrise color curve
+    </a>
+  </div>
+</main>
+
+<!-- Toast container -->
+<div class="toast-container" id="toasts" aria-live="polite"></div>
+
+<script>
+  const timeInput   = document.getElementById('timeInput');
+  const alarmToggle = document.getElementById('alarmToggle');
+  const alarmStatus = document.getElementById('alarmStatus');
+  const statusMsg   = document.getElementById('statusMsg');
+  const saveBtn     = document.getElementById('saveBtn');
+
+  function setStatus(msg, type = '') {
+    statusMsg.textContent = msg;
+    statusMsg.style.color = type === 'error' ? 'var(--danger)'
+                          : type === 'ok'    ? 'var(--success)'
+                          :                    'var(--text-muted)';
+  }
+
+  function showToast(msg, type = '') {
+    const t = document.createElement('div');
+    t.className = 'toast' + (type ? ' ' + type : '');
+    t.textContent = msg;
+    const container = document.getElementById('toasts');
+    container.appendChild(t);
+    setTimeout(() => t.remove(), 3200);
+  }
+
+  function updateToggleUI() {
+    const on = alarmToggle.checked;
+    alarmStatus.textContent = on ? 'ON' : 'OFF';
+    alarmStatus.className = 'alarm-status ' + (on ? 'on' : 'off');
+  }
+
+  alarmToggle.addEventListener('change', () => {
+    updateToggleUI();
+    saveAlarm();
+  });
+
+  timeInput.addEventListener('change', () => saveAlarm());
+
+  async function loadAlarm() {
+    try {
+      const res = await fetch('/api/alarm');
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (typeof data.hour === 'number' && typeof data.minute === 'number') {
+        timeInput.value = pad(data.hour) + ':' + pad(data.minute);
+      } else if (data.time) {
+        timeInput.value = data.time;
+      }
+      alarmToggle.checked = data.enabled ?? false;
+      updateToggleUI();
+      const t = timeInput.value;
+      setStatus(alarmToggle.checked ? `Alarm set for ${t}` : 'Alarm is disabled');
+    } catch (e) {
+      setStatus('Could not load alarm', 'error');
+    }
+  }
+
+  async function saveAlarm() {
+    document.body.classList.add('saving');
+    const time = timeInput.value;
+    const enabled = alarmToggle.checked;
+    try {
+      const res = await fetch('/api/alarm', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ time, enabled })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok) {
+        setStatus(enabled ? `Alarm set for ${time}` : 'Alarm disabled');
+        showToast(enabled ? `Alarm set for ${time}` : 'Alarm disabled', 'success');
+      } else {
+        setStatus(data.error ?? 'Failed to save', 'error');
+        showToast('Failed to save alarm', 'error');
+      }
+    } catch (e) {
+      setStatus('Network error', 'error');
+      showToast('Network error', 'error');
+    } finally {
+      document.body.classList.remove('saving');
+    }
+  }
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+
+  document.addEventListener('DOMContentLoaded', loadAlarm);
+</script>
+
+</body>
+</html>

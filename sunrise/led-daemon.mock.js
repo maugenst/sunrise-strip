@@ -1,32 +1,30 @@
-// led-daemon.js — root-privileged WebSocket daemon for LED strip + sunrise animation
+// led-daemon.mock.js — sandbox version of led-daemon.js for local development
+// Replaces rpi-ws281x-native with a plain Uint32Array and broadcasts pixel state
+// to all WebSocket clients so the browser visualizer can render it live.
+// Audio calls and crontab management are stubbed (no-op).
 import { WebSocketServer } from 'ws';
-import ws281x from 'rpi-ws281x-native';
-import { execSync } from 'child_process';
-import { writeFileSync, unlinkSync, readFileSync } from 'fs';
-import { tmpdir } from 'os';
-import { join, resolve } from 'path';
-import fetch from 'node-fetch';
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
 
 const LEDS = 300;
-const CRONTAB_MARKER = '# SUNRISE-ALARM';
 const PRESET_PATH = resolve(process.cwd(), 'sunrise-preset.json');
 
-const channel = ws281x(LEDS, {
-    dma: 10,
-    freq: 800000,
-    gpio: 10,
-    invert: false,
-    brightness: 255,
-    stripType: ws281x.stripType.WS2812
-});
+// ── Mock LED hardware ─────────────────────────────────────────────────────────
+// Plain Uint32Array — same shape as rpi-ws281x-native's channel.array.
+// Each element: 0x00RRGGBB packed integer.
 
-const pixels = channel.array;
+const pixels = new Uint32Array(LEDS);
 
-// --- sunrise animation state ---
-let sunriseRunning = false;
-let sunriseAbort = false;
+function mockRender() {
+    broadcastPixels();
+}
 
-// ── helpers ─────────────────────────────────────────────────────────────────
+function mockReset() {
+    pixels.fill(0);
+    broadcastPixels();
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function rgbToInt(r, g, b) {
     return ((r & 0xff) << 16) | ((g & 0xff) << 8) | (b & 0xff);
@@ -73,7 +71,10 @@ function loadPreset() {
     return { keyframes, minutes };
 }
 
-// ── sunrise runner ───────────────────────────────────────────────────────────
+// ── Sunrise runner ────────────────────────────────────────────────────────────
+
+let sunriseRunning = false;
+let sunriseAbort = false;
 
 async function runSunrise(minutes, delayMs, broadcast) {
     if (sunriseRunning) return { ok: false, error: 'already_running' };
@@ -93,27 +94,26 @@ async function runSunrise(minutes, delayMs, broadcast) {
     const actualDelay = targetMs / steps;
     let audioStarted = false;
 
-    console.log(`[sunrise] starting: ${minutes}min, ${steps} steps, ${actualDelay.toFixed(1)}ms/step`);
+    console.log(`[mock] sunrise starting: ${minutes}min, ${steps} steps, ${actualDelay.toFixed(1)}ms/step`);
     broadcast({ type: 'sunriseStarted', minutes, steps });
 
     for (let step = 0; step <= steps; step++) {
         if (sunriseAbort) {
-            console.log('[sunrise] aborted');
+            console.log('[mock] sunrise aborted');
             break;
         }
 
         const pct = (step / steps) * 100;
         const { r, g, b } = interpolateRGB(keyframes, pct);
         pixels.fill(rgbToInt(r, g, b));
-        ws281x.render();
+        mockRender();
 
         if (pct > 95 && !audioStarted) {
             audioStarted = true;
             const remainingMs = (steps - step) * actualDelay;
-            fetch(`http://sunrise:5000/fadein?duration=${Math.round(remainingMs / 1000)}`)
-                .then(res => res.json().catch(() => ({})))
-                .then(data => console.log('[sunrise] audio fadein:', JSON.stringify(data)))
-                .catch(e => console.warn('[sunrise] audio fadein failed:', e.message));
+            const durationS = Math.round(remainingMs / 1000);
+            console.log(`[mock] audio fadein — broadcasting to browser (duration: ${durationS}s)`);
+            broadcast({ type: 'audioFadeIn', durationS });
         }
 
         if (step % Math.max(1, Math.floor(steps / 20)) === 0) {
@@ -123,96 +123,37 @@ async function runSunrise(minutes, delayMs, broadcast) {
         if (step < steps) await wait(actualDelay);
     }
 
-    fetch('http://sunrise:5000/fadeout')
-        .then(res => res.json().catch(() => ({})))
-        .then(data => console.log('[sunrise] audio fadeout:', JSON.stringify(data)))
-        .catch(e => console.warn('[sunrise] audio fadeout failed:', e.message));
-
+    console.log('[mock] audio fadeout — broadcasting to browser');
+    broadcast({ type: 'audioFadeOut' });
     pixels.fill(0);
-    ws281x.render();
+    mockRender();
     sunriseRunning = false;
     broadcast({ type: 'sunriseDone', aborted: sunriseAbort });
-    console.log('[sunrise] done');
+    console.log('[mock] sunrise done');
     return { ok: true };
 }
 
-// ── crontab helpers ──────────────────────────────────────────────────────────
+// ── Alarm stubs (no-op in sandbox) ───────────────────────────────────────────
 
-function writeCrontab(content) {
-    const tmp = join(tmpdir(), `sunrise-cron-${process.pid}.txt`);
-    try {
-        writeFileSync(tmp, content, { encoding: 'utf8', mode: 0o600 });
-        execSync(`crontab ${tmp}`, { encoding: 'utf8' });
-    } finally {
-        try { unlinkSync(tmp); } catch {}
-    }
+let mockAlarm = { hour: 7, minute: 0, enabled: false };
+
+function getCurrentAlarm() { return { ...mockAlarm }; }
+function setAlarm(hour, minute, enabled) {
+    mockAlarm = { hour, minute, enabled };
+    console.log(`[mock] alarm set: ${String(hour).padStart(2,'0')}:${String(minute).padStart(2,'0')} enabled=${enabled}`);
+    return { ok: true, hour, minute, enabled };
 }
-
-function getExistingCrontab() {
-    try {
-        const crontab = execSync('crontab -l 2>/dev/null || true', { encoding: 'utf8' });
-        return crontab.split('\n').filter(line => !line.includes(CRONTAB_MARKER)).join('\n').trim();
-    } catch (e) {
-        console.error('Error reading crontab:', e.message);
-        return '';
-    }
-}
-
-function getCurrentAlarm() {
-    try {
-        const crontab = execSync('crontab -l 2>/dev/null || true', { encoding: 'utf8' });
-        for (const line of crontab.split('\n')) {
-            if (line.includes(CRONTAB_MARKER)) {
-                const match = line.match(/^(\d+)\s+(\d+)\s+/);
-                if (match) {
-                    return { hour: parseInt(match[2], 10), minute: parseInt(match[1], 10), enabled: true };
-                }
-            }
-        }
-        return { hour: 7, minute: 0, enabled: false };
-    } catch (e) {
-        console.error('Error getting alarm:', e.message);
-        return { hour: 7, minute: 0, enabled: false };
-    }
-}
-
-function setAlarm(hour, minute, enabled, command) {
-    try {
-        let base = getExistingCrontab();
-        if (enabled) {
-            const line = `${minute} ${hour} * * * ${command} ${CRONTAB_MARKER}`;
-            base = base ? `${base}\n${line}` : line;
-        }
-        if (base && !base.endsWith('\n')) base += '\n';
-        writeCrontab(base);
-        console.log(`Alarm ${enabled ? 'set' : 'disabled'}: ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`);
-        return { ok: true, hour, minute, enabled };
-    } catch (e) {
-        console.error('Error setting alarm:', e.message);
-        return { ok: false, error: e.message };
-    }
-}
-
 function deleteAlarm() {
-    try {
-        const base = getExistingCrontab();
-        const content = base && !base.endsWith('\n') ? base + '\n' : base;
-        if (content.trim()) {
-            writeCrontab(content);
-        } else {
-            execSync('crontab -r 2>/dev/null || true', { encoding: 'utf8' });
-        }
-        console.log('Alarm deleted');
-        return { ok: true, enabled: false };
-    } catch (e) {
-        console.error('Error deleting alarm:', e.message);
-        return { ok: false, error: e.message };
-    }
+    mockAlarm.enabled = false;
+    console.log('[mock] alarm deleted');
+    return { ok: true, enabled: false };
 }
 
-// ── WebSocket server ─────────────────────────────────────────────────────────
+// ── WebSocket server ──────────────────────────────────────────────────────────
+// Bind to 0.0.0.0 (not 127.0.0.1) so the browser can connect directly for
+// the visualizer without a proxy.
 
-const wss = new WebSocketServer({ host: '127.0.0.1', port: 5455 });
+const wss = new WebSocketServer({ host: '0.0.0.0', port: 5455 });
 
 function broadcast(msg) {
     const raw = JSON.stringify(msg);
@@ -223,10 +164,23 @@ function broadcast(msg) {
     }
 }
 
-wss.on('listening', () => console.log('LED daemon WS listening on ws://127.0.0.1:5455'));
+function broadcastPixels() {
+    // Serialize Uint32Array to a plain Array for JSON.
+    // Clients that don't understand 'ledState' simply ignore it.
+    broadcast({ type: 'ledState', pixels: Array.from(pixels) });
+}
+
+wss.on('listening', () => {
+    console.log('[mock] LED daemon WS listening on ws://0.0.0.0:5455');
+    console.log('[mock] Visualizer: open http://localhost:8080/visualizer in your browser');
+});
 
 wss.on('connection', (client, req) => {
-    console.log('daemon: connection from', req.socket.remoteAddress);
+    console.log('[mock] connection from', req.socket.remoteAddress);
+
+    // Send current pixel state immediately so the visualizer shows
+    // the current color on connect without waiting for a change.
+    client.send(JSON.stringify({ type: 'ledState', pixels: Array.from(pixels) }));
 
     client.on('message', async (buf) => {
         let msg;
@@ -240,12 +194,12 @@ wss.on('connection', (client, req) => {
             const g = Math.max(0, Math.min(255, msg.g | 0));
             const b = Math.max(0, Math.min(255, msg.b | 0));
             pixels.fill(rgbToInt(r, g, b));
-            ws281x.render();
+            mockRender();
             client.send(JSON.stringify({ ok: true, type: 'set', r, g, b }));
 
         } else if (cmd === 'off') {
             pixels.fill(0);
-            ws281x.render();
+            mockRender();
             client.send(JSON.stringify({ ok: true, type: 'off' }));
 
         } else if (cmd === 'ping') {
@@ -258,7 +212,7 @@ wss.on('connection', (client, req) => {
             try { preset = loadPreset(); } catch (e) { client.send(JSON.stringify({ ok: false, error: e.message })); return; }
             const mins = minutes ?? preset.minutes;
             client.send(JSON.stringify({ ok: true, type: 'sunriseQueued', minutes: mins }));
-            runSunrise(mins, delayMs, broadcast).catch(e => console.error('[sunrise] error:', e));
+            runSunrise(mins, delayMs, broadcast).catch(e => console.error('[mock] sunrise error:', e));
 
         } else if (cmd === 'stopSunrise') {
             sunriseAbort = true;
@@ -268,19 +222,17 @@ wss.on('connection', (client, req) => {
             client.send(JSON.stringify({ ok: true, type: 'sunriseStatus', running: sunriseRunning }));
 
         } else if (cmd === 'getAlarm') {
-            const alarm = getCurrentAlarm();
-            client.send(JSON.stringify({ ok: true, type: 'alarm', ...alarm }));
+            client.send(JSON.stringify({ ok: true, type: 'alarm', ...getCurrentAlarm() }));
 
         } else if (cmd === 'setAlarm') {
             const hour = parseInt(msg.hour, 10);
             const minute = parseInt(msg.minute, 10);
             const enabled = msg.enabled !== false;
-            const command = msg.command || 'cd /home/marius/github/sunrise-strip/sunrise && node led-client-runner.js';
             if (isNaN(hour) || isNaN(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
                 client.send(JSON.stringify({ ok: false, error: 'invalid_time' }));
                 return;
             }
-            const result = setAlarm(hour, minute, enabled, command);
+            const result = setAlarm(hour, minute, enabled);
             client.send(JSON.stringify({ type: 'alarmSet', ...result }));
 
         } else if (cmd === 'deleteAlarm') {
@@ -292,13 +244,11 @@ wss.on('connection', (client, req) => {
         }
     });
 
-    client.on('close', () => console.log('daemon: client disconnected'));
+    client.on('close', () => console.log('[mock] client disconnected'));
 });
 
 process.on('SIGINT', () => {
     sunriseAbort = true;
-    pixels.fill(0);
-    ws281x.render();
-    ws281x.reset();
+    mockReset();
     process.exit(0);
 });

@@ -55,19 +55,21 @@ function connect() {
     });
 
     ws.on('message', (data) => {
-        // optional: log or handle daemon messages
-        console.log('[ledClient] daemon:', data.toString());
-        
         try {
             const response = JSON.parse(data.toString());
-            // Resolve any pending promise handlers based on response type
-            if (response.type === 'alarm' || response.type === 'alarmSet' || response.type === 'alarmDeleted') {
+            const type = response.type;
+            // Don't log high-frequency ledState broadcasts
+            if (type !== 'ledState') console.log('[ledClient] daemon:', data.toString());
+            if (type === 'alarm' || type === 'alarmSet' || type === 'alarmDeleted' ||
+                type === 'sunriseStatus' || type === 'sunriseStopping') {
                 const handlers = Array.from(responseHandlers.entries());
                 for (const [id, handler] of handlers) {
-                    if (handler.type === response.type || 
-                        (handler.type === 'alarm' && response.type === 'alarm') ||
-                        (handler.type === 'setAlarm' && response.type === 'alarmSet') ||
-                        (handler.type === 'deleteAlarm' && response.type === 'alarmDeleted')) {
+                    if (handler.type === type ||
+                        (handler.type === 'alarm' && type === 'alarm') ||
+                        (handler.type === 'setAlarm' && type === 'alarmSet') ||
+                        (handler.type === 'deleteAlarm' && type === 'alarmDeleted') ||
+                        (handler.type === 'sunriseStatus' && type === 'sunriseStatus') ||
+                        (handler.type === 'stopSunrise' && type === 'sunriseStopping')) {
                         handler.resolve(response);
                         responseHandlers.delete(id);
                         break;
@@ -177,5 +179,31 @@ export async function deleteAlarm() {
     } catch (e) {
         console.error('[ledClient] deleteAlarm error:', e.message);
         return { ok: false, error: e.message };
+    }
+}
+
+/**
+ * Send stopSunrise command to daemon
+ */
+export async function stopSunrise() {
+    try {
+        const response = await sendAndWait({ cmd: 'stopSunrise' }, 'stopSunrise');
+        return response;
+    } catch (e) {
+        console.error('[ledClient] stopSunrise error:', e.message);
+        return { ok: false, error: e.message };
+    }
+}
+
+/**
+ * Get current sunrise running status from daemon
+ */
+export async function getSunriseStatus() {
+    try {
+        const response = await sendAndWait({ cmd: 'sunriseStatus' }, 'sunriseStatus');
+        return response;
+    } catch (e) {
+        console.error('[ledClient] sunriseStatus error:', e.message);
+        return { ok: false, running: false, error: e.message };
     }
 }
