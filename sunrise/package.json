@@ -7,6 +7,7 @@
     "start": "node server.js",
     "start:mock": "node led-daemon.mock.js",
     "dev": "npm-run-all2 --parallel start start:mock",
+    "dev:stop": "node scripts/dev-stop.js",
     "stop:sunrise": "node scripts/stop-sunrise.js",
     "start:sunrise": "/usr/local/bin/node index.js -m 15 -d 40 >> /var/log/sunrise-cron.log 2>&1"
   },
