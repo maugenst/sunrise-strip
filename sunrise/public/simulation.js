@@ -236,11 +236,24 @@ function togglePlay() {
 
 // ── LED API ───────────────────────────────────────────────────────────────────
 
+// Throttle LED updates: send at most once every 200ms, always with the latest color.
+// A debounce was used before but rAF fires every 16ms, constantly resetting the
+// 60ms timer so the fetch never actually fired during animation playback.
+let _ledThrottleTimer = null;
+let _ledPendingColor  = null;
+
 function sendColorDebounced(r, g, b) {
   // Don't override the daemon while a real sunrise is running on the hardware
   if (state.sunriseRunning) return;
-  if (state.ledDebounce) clearTimeout(state.ledDebounce);
-  state.ledDebounce = setTimeout(async () => {
+
+  _ledPendingColor = { r, g, b };
+
+  if (_ledThrottleTimer) return; // already scheduled — latest color will be sent
+
+  _ledThrottleTimer = setTimeout(async () => {
+    _ledThrottleTimer = null;
+    const { r, g, b } = _ledPendingColor;
+    _ledPendingColor = null;
     try {
       await fetch('/api/led', {
         method: 'POST',
@@ -248,7 +261,7 @@ function sendColorDebounced(r, g, b) {
         body: JSON.stringify({ r, g, b })
       });
     } catch {}
-  }, 60);
+  }, 200);
 }
 
 async function turnOffLed() {
