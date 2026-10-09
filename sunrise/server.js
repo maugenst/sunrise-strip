@@ -1,10 +1,10 @@
 // server.js — Fastify HTTP server replacing SvelteKit
 import Fastify from 'fastify';
 import staticPlugin from '@fastify/static';
+import websocketPlugin from '@fastify/websocket';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { WebSocketServer } from 'ws';
 import {
     setColor, turnOff, getStatus,
     getAlarm, setAlarm, deleteAlarm,
@@ -22,6 +22,38 @@ const app = Fastify({ logger: { level: 'info' } });
 app.register(staticPlugin, {
     root: path.join(__dirname, 'public'),
     prefix: '/'
+});
+
+// ── WebSocket event proxy on ws://[host]:8080/ws/events ───────────────────────
+// Same port as HTTP — no mixed-content issues, no extra firewall rules.
+// Browser connects here to receive sunriseStarted/Progress/Done broadcasts.
+
+app.register(websocketPlugin);
+
+app.register(async function wsRoutes(app) {
+    app.get('/ws/events', { websocket: true }, async (socket) => {
+        // Send current status immediately so late-joining browsers catch up
+        try {
+            const status = await getSunriseStatus();
+            socket.send(JSON.stringify({ type: 'sunriseStatus', running: status.running ?? false }));
+        } catch {}
+
+        socket.on('error', () => {});
+    });
+});
+
+// Forward daemon events to all connected browser clients
+const FORWARD = new Set(['sunriseStarted', 'sunriseProgress', 'sunriseDone',
+                         'sunriseStopping', 'sunriseQueued', 'sunriseStatus']);
+
+onBroadcast((msg) => {
+    if (!FORWARD.has(msg.type)) return;
+    const raw = JSON.stringify(msg);
+    if (app.websocketServer) {
+        for (const client of app.websocketServer.clients) {
+            if (client.readyState === 1) { try { client.send(raw); } catch {} }
+        }
+    }
 });
 
 // Serve birds.mp3 from sunrise-audio/ for the browser audio sandbox
@@ -196,35 +228,8 @@ app.setNotFoundHandler(async (req, reply) => {
 try {
     await app.listen({ port: 8080, host: '0.0.0.0' });
     console.log('Sunrise server running on http://0.0.0.0:8080');
+    console.log('Event WS available at ws://0.0.0.0:8080/ws/events');
 } catch (err) {
     app.log.error(err);
     process.exit(1);
 }
-
-// ── WebSocket event proxy on port 8081 ────────────────────────────────────────
-// Bridges daemon events (sunriseStarted/Progress/Done) to browser clients.
-// Browsers connect to ws://[host]:8081/events — safe to expose on LAN since
-// it only forwards read-only broadcast events (no LED control commands).
-
-const eventWss = new WebSocketServer({ port: 8081, host: '0.0.0.0' });
-
-eventWss.on('listening', () => console.log('Event proxy WS on ws://0.0.0.0:8081'));
-
-eventWss.on('connection', (client) => {
-    // no-op: clients only receive, they don't send commands here
-    client.on('error', () => {});
-});
-
-// Register a broadcast listener in ledClient — called whenever the daemon
-// sends a message. We forward sunrise events to all browser clients.
-onBroadcast((msg) => {
-    const FORWARD = new Set(['sunriseStarted', 'sunriseProgress', 'sunriseDone',
-                             'sunriseStopping', 'sunriseQueued', 'sunriseStatus']);
-    if (!FORWARD.has(msg.type)) return;
-    const raw = JSON.stringify(msg);
-    for (const client of eventWss.clients) {
-        if (client.readyState === 1) {
-            try { client.send(raw); } catch {}
-        }
-    }
-});
