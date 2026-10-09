@@ -438,6 +438,75 @@ async function refreshSunriseStatus() {
   } catch {}
 }
 
+// ── Daemon WebSocket — live progress in Real mode ─────────────────────────────
+// The daemon broadcasts sunriseStarted / sunriseProgress / sunriseDone over WS.
+// We connect directly to ws://[host]:5455 so the simulation page shows live
+// progress without waiting for the 5-second HTTP poll.
+
+let _daemonWs = null;
+let _daemonReconnect = null;
+let _realProgress = 0; // 0..100
+
+function connectDaemonWs() {
+  if (_daemonWs && (_daemonWs.readyState === WebSocket.OPEN || _daemonWs.readyState === WebSocket.CONNECTING)) return;
+
+  const url = `ws://${location.hostname}:5455`;
+  _daemonWs = new WebSocket(url);
+
+  _daemonWs.addEventListener('open', () => {
+    clearTimeout(_daemonReconnect);
+  });
+
+  _daemonWs.addEventListener('close', () => {
+    _daemonReconnect = setTimeout(connectDaemonWs, 2000);
+  });
+
+  _daemonWs.addEventListener('message', e => {
+    let msg;
+    try { msg = JSON.parse(e.data); } catch { return; }
+
+    if (msg.type === 'sunriseStarted') {
+      state.sunriseRunning = true;
+      _realProgress = 0;
+      updateStopBtn();
+      appendLog(`🌅 Sunrise started on device — ${msg.minutes} min`);
+      updateRealProgress(0);
+    } else if (msg.type === 'sunriseProgress') {
+      state.sunriseRunning = true;
+      _realProgress = msg.pct;
+      updateRealProgress(msg.pct);
+    } else if (msg.type === 'sunriseDone') {
+      state.sunriseRunning = false;
+      _realProgress = msg.aborted ? _realProgress : 100;
+      updateRealProgress(_realProgress);
+      updateStopBtn();
+      appendLog(msg.aborted ? '⏹ Sunrise stopped' : '✓ Sunrise complete');
+    }
+  });
+}
+
+function updateRealProgress(pct) {
+  if (!realMode) return;
+  // Drive the scrubber and progress display with real hardware progress
+  const scrubber = document.getElementById('scrubber');
+  const scrubLabel = document.getElementById('scrubLabel');
+  if (scrubber)   scrubber.value = pct;
+  if (scrubLabel) scrubLabel.textContent = pct.toFixed(0) + '%';
+
+  // Interpolate the background color from the current rows at this progress
+  const progress = (pct / 100) * (STEP_COUNT - 1);
+  const { r, g, b } = interpolateRGB(progress);
+  document.body.style.background =
+    `radial-gradient(ellipse at center, rgb(${r},${g},${b}) 0%, #020617 60%)`;
+
+  // Log every 5%
+  if (Math.floor(pct / 5) !== Math.floor((_realProgress - 0.01) / 5)) {
+    const kelvin = Math.round(1800 + (6500 - 1800) * (pct / 100));
+    const intensity = Math.round(((r + g + b) / 3 / 255) * 100);
+    appendLog(`${pct}% | ${kelvin}K | ${intensity}% | RGB(${r},${g},${b})`);
+  }
+}
+
 async function stopSunrise() {
   try {
     await fetch('/api/stop', { method: 'POST' });
@@ -633,7 +702,10 @@ async function init() {
   }
 
   document.getElementById('modeSimBtn')?.addEventListener('click',  () => setMode(false));
-  document.getElementById('modeRealBtn')?.addEventListener('click', () => setMode(true));
+  document.getElementById('modeRealBtn')?.addEventListener('click', () => {
+    setMode(true);
+    connectDaemonWs(); // ensure WS is live when entering real mode
+  });
 
   // sim minutes input
   const simMins = document.getElementById('simMinutes');
@@ -709,7 +781,8 @@ async function init() {
   // load preset then render
   await loadPreset();
   await refreshSunriseStatus();
-  loadAudio(); // non-blocking — loads birds.mp3 in background
+  loadAudio();
+  connectDaemonWs(); // live progress for real mode
   update();
 
   // poll sunrise status every 5s
