@@ -9,7 +9,6 @@ const DAEMON_URL = 'ws://127.0.0.1:5455';
 function ts()   { return new Date().toISOString(); }
 function log(m) { console.log(`[${ts()}] ${m}`); }
 function err(m) { console.error(`[${ts()}] ERROR ${m}`); }
-
 function parseArgs() {
     const args   = process.argv.slice(2);
     const result = { help: false };

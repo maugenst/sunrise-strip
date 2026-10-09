@@ -1,0 +1,469 @@
+{
+  "version": 1,
+  "bugs": [
+    {
+      "id": "bug-001",
+      "timestamp": "2026-10-08T20:01:21.960Z",
+      "error_message": "Significant refactor of ",
+      "file": "sunrise/public/simulation.js",
+      "root_cause": "2 lines replaced/restructured",
+      "fix": "Rewrote 16→20 lines (2 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "js"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-08T20:01:21.960Z"
+    },
+    {
+      "id": "bug-002",
+      "timestamp": "2026-10-08T20:13:08.730Z",
+      "error_message": "Significant refactor of ",
+      "file": "sunrise/public/simulation.html",
+      "root_cause": "6 lines replaced/restructured",
+      "fix": "Rewrote 11→11 lines (6 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "html"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-08T20:13:08.730Z"
+    },
+    {
+      "id": "bug-003",
+      "timestamp": "2026-10-08T20:24:35.848Z",
+      "error_message": "Wrong operator: === should be &&",
+      "file": "sunrise/led-daemon.mock.js",
+      "root_cause": "Used \"===\" instead of \"&&\"",
+      "fix": "Changed operator === → &&",
+      "tags": [
+        "auto-detected",
+        "operator-fix",
+        "js"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-08T20:24:35.848Z"
+    },
+    {
+      "id": "bug-004",
+      "timestamp": "2026-10-08T20:24:40.431Z",
+      "error_message": "Incorrect value in code",
+      "file": "sunrise/led-daemon.mock.js",
+      "root_cause": "Had '[mock] audio fadeout skipped (sandbox)'",
+      "fix": "Changed to '[mock] audio fadeout — broadcasting to browser'",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "js"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-08T20:24:40.431Z"
+    },
+    {
+      "id": "bug-005",
+      "timestamp": "2026-10-08T20:24:45.444Z",
+      "error_message": "Function not marked async",
+      "file": "sunrise/server.js",
+      "root_cause": "Function uses await but wasn't declared async",
+      "fix": "Added async modifier",
+      "tags": [
+        "auto-detected",
+        "async-fix",
+        "js"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-08T20:24:45.444Z"
+    },
+    {
+      "id": "bug-006",
+      "timestamp": "2026-10-08T20:24:54.650Z",
+      "error_message": "Missing error handling in function",
+      "file": "sunrise/public/visualizer.html",
+      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "fix": "Added try/catch block",
+      "tags": [
+        "auto-detected",
+        "error-handling",
+        "html"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-08T20:24:54.650Z"
+    },
+    {
+      "id": "bug-007",
+      "timestamp": "2026-10-08T20:25:00.382Z",
+      "error_message": "Null/undefined access in ",
+      "file": "sunrise/public/visualizer.html",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check)",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "html"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-08T20:25:00.382Z"
+    },
+    {
+      "id": "bug-008",
+      "timestamp": "2026-10-08T20:47:28.426Z",
+      "error_message": "Missing error handling in unknown",
+      "file": "sunrise/package.json",
+      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "fix": "Added try/catch block",
+      "tags": [
+        "auto-detected",
+        "error-handling",
+        "json"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-08T20:47:28.426Z"
+    },
+    {
+      "id": "bug-009",
+      "timestamp": "2026-10-08T20:47:41.532Z",
+      "error_message": "Incorrect value in code",
+      "file": "sunrise/package.json",
+      "root_cause": "Had \"node -e \\\"",
+      "fix": "Changed to \"node scripts/dev-stop.js\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "json"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-08T20:47:41.532Z"
+    },
+    {
+      "id": "bug-010",
+      "timestamp": "2026-10-08T21:07:57.687Z",
+      "error_message": "Incorrect value in code",
+      "file": "sunrise/package.json",
+      "root_cause": "Had \"dev:stop\"",
+      "fix": "Changed to \"stop:sunrise\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "json"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-08T21:07:57.688Z"
+    },
+    {
+      "id": "bug-011",
+      "timestamp": "2026-10-08T21:10:18.408Z",
+      "error_message": "Missing error handling in pad",
+      "file": "sunrise/public/index.html",
+      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "fix": "Added try/catch block",
+      "tags": [
+        "auto-detected",
+        "error-handling",
+        "html"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-08T21:10:18.408Z"
+    },
+    {
+      "id": "bug-012",
+      "timestamp": "2026-10-08T21:14:59.245Z",
+      "error_message": "Incorrect value in code",
+      "file": "sunrise/package.json",
+      "root_cause": "Had \"stop:sunrise\"",
+      "fix": "Changed to \"dev:stop\"",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "json"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-08T21:14:59.245Z"
+    },
+    {
+      "id": "bug-013",
+      "timestamp": "2026-10-08T21:17:16.004Z",
+      "error_message": "Significant refactor of ",
+      "file": "sunrise/scripts/deploy.js",
+      "root_cause": "2 lines replaced/restructured",
+      "fix": "Rewrote 6→10 lines (2 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "js"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-08T21:17:16.004Z"
+    },
+    {
+      "id": "bug-014",
+      "timestamp": "2026-10-09T06:08:28.185Z",
+      "error_message": "Missing guard clause",
+      "file": "sunrise/public/simulation.js",
+      "root_cause": "No early return/throw for edge case: state.sunriseRunning",
+      "fix": "Added guard clause: if (state.sunriseRunning)",
+      "tags": [
+        "auto-detected",
+        "guard-clause",
+        "js"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-09T06:08:28.185Z"
+    },
+    {
+      "id": "bug-015",
+      "timestamp": "2026-10-09T06:10:14.010Z",
+      "error_message": "Significant refactor of ",
+      "file": "sunrise/public/visualizer.html",
+      "root_cause": "9 lines replaced/restructured",
+      "fix": "Rewrote 39→48 lines (9 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "html"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-09T06:10:14.010Z"
+    },
+    {
+      "id": "bug-016",
+      "timestamp": "2026-10-09T06:19:53.976Z",
+      "error_message": "Significant refactor of ",
+      "file": "sunrise/public/simulation.js",
+      "root_cause": "3 lines replaced/restructured",
+      "fix": "Rewrote 14→27 lines (3 removed)",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "js"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-09T06:19:53.976Z"
+    },
+    {
+      "id": "bug-017",
+      "timestamp": "2026-10-09T06:28:35.713Z",
+      "error_message": "Missing error handling in function",
+      "file": "sunrise/public/simulation.js",
+      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "fix": "Added try/catch block",
+      "tags": [
+        "auto-detected",
+        "error-handling",
+        "js"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-09T06:28:35.713Z"
+    },
+    {
+      "id": "bug-018",
+      "timestamp": "2026-10-09T06:59:47.789Z",
+      "error_message": "Null/undefined access in ",
+      "file": "sunrise/public/simulation.js",
+      "root_cause": "Property access on potentially null/undefined value",
+      "fix": "Added null safety (optional chaining or null check) | Also: const res = await fetch('/api/sunrise', { method: 'POST',; body: JSON.stringify({}) }); | Also: const minutes = parseFloat(document.getElementById('simMinut; body: JSON.stringify({ minutes }) });",
+      "tags": [
+        "auto-detected",
+        "null-safety",
+        "js"
+      ],
+      "related_bugs": [],
+      "occurrences": 3,
+      "last_seen": "2026-10-09T07:04:17.947Z"
+    },
+    {
+      "id": "bug-019",
+      "timestamp": "2026-10-09T06:59:58.162Z",
+      "error_message": "Missing error handling in unknown",
+      "file": "sunrise/public/simulation.js",
+      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "fix": "Added try/catch block",
+      "tags": [
+        "auto-detected",
+        "error-handling",
+        "js"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-09T06:59:58.162Z"
+    },
+    {
+      "id": "bug-020",
+      "timestamp": "2026-10-09T07:00:11.366Z",
+      "error_message": "Missing error handling in function",
+      "file": "sunrise/server/ledClient.js",
+      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "fix": "Added try/catch block",
+      "tags": [
+        "auto-detected",
+        "error-handling",
+        "js"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-09T07:00:11.366Z"
+    },
+    {
+      "id": "bug-021",
+      "timestamp": "2026-10-09T07:00:44.909Z",
+      "error_message": "Missing error handling in unknown",
+      "file": "sunrise/server.js",
+      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "fix": "Added try/catch block",
+      "tags": [
+        "auto-detected",
+        "error-handling",
+        "js"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-09T07:00:44.909Z"
+    },
+    {
+      "id": "bug-022",
+      "timestamp": "2026-10-09T07:02:14.335Z",
+      "error_message": "Wrong reference: typeof should be realMode",
+      "file": "sunrise/public/simulation.js",
+      "root_cause": "Used \"typeof\" instead of \"realMode\"",
+      "fix": "Changed typeof → realMode",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "js"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-09T07:02:14.335Z"
+    },
+    {
+      "id": "bug-023",
+      "timestamp": "2026-10-09T07:04:23.146Z",
+      "error_message": "Incorrect value in code",
+      "file": "sunrise/public/simulation.js",
+      "root_cause": "Had '🌅 Real mode — hardware LEDs + Pi speaker'",
+      "fix": "Changed to '🌅 Real mode — hardware LEDs + Pi speaker (durati",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "js"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-09T07:04:23.146Z"
+    },
+    {
+      "id": "bug-024",
+      "timestamp": "2026-10-09T07:39:29.133Z",
+      "error_message": "Missing guard clause",
+      "file": "sunrise/public/simulation.js",
+      "root_cause": "No early return/throw for edge case: _daemonWs && (_daemonWs.readyState === WebSocket.OPEN || _da",
+      "fix": "Added guard clause: if (_daemonWs && (_daemonWs.readyState === W)",
+      "tags": [
+        "auto-detected",
+        "guard-clause",
+        "js"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-09T07:39:29.133Z"
+    },
+    {
+      "id": "bug-025",
+      "timestamp": "2026-10-09T07:44:52.972Z",
+      "error_message": "Missing error handling in onBroadcast",
+      "file": "sunrise/server/ledClient.js",
+      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "fix": "Added try/catch block",
+      "tags": [
+        "auto-detected",
+        "error-handling",
+        "js"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-09T07:44:52.972Z"
+    },
+    {
+      "id": "bug-026",
+      "timestamp": "2026-10-09T07:45:35.915Z",
+      "error_message": "Wrong reference: 5455 should be 8081",
+      "file": "sunrise/scripts/dev-stop.js",
+      "root_cause": "Used \"5455\" instead of \"8081\"",
+      "fix": "Changed 5455 → 8081",
+      "tags": [
+        "auto-detected",
+        "wrong-reference",
+        "js"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-09T07:45:35.915Z"
+    },
+    {
+      "id": "bug-027",
+      "timestamp": "2026-10-09T07:51:45.952Z",
+      "error_message": "Missing error handling in function",
+      "file": "sunrise/server.js",
+      "root_cause": "Code path had no error handling — exceptions would propagate uncaught",
+      "fix": "Added try/catch block",
+      "tags": [
+        "auto-detected",
+        "error-handling",
+        "js"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-09T07:51:45.952Z"
+    },
+    {
+      "id": "bug-028",
+      "timestamp": "2026-10-09T07:51:55.572Z",
+      "error_message": "Significant refactor of ",
+      "file": "sunrise/server.js",
+      "root_cause": "21 lines replaced/restructured",
+      "fix": "Rewrote 37→10 lines (21 removed) | Also: // Iterate all WebSocket clients registered by @fa; for (const [, clients] of (app.websocketServer?.cl",
+      "tags": [
+        "auto-detected",
+        "refactor",
+        "js"
+      ],
+      "related_bugs": [],
+      "occurrences": 2,
+      "last_seen": "2026-10-09T07:52:37.128Z"
+    },
+    {
+      "id": "bug-029",
+      "timestamp": "2026-10-09T07:52:03.732Z",
+      "error_message": "Incorrect value in code",
+      "file": "sunrise/public/simulation.js",
+      "root_cause": "Had `ws://${location.hostname}:8081`",
+      "fix": "Changed to `ws://${location.host}/ws/events`",
+      "tags": [
+        "auto-detected",
+        "wrong-value",
+        "js"
+      ],
+      "related_bugs": [],
+      "occurrences": 1,
+      "last_seen": "2026-10-09T07:52:03.732Z"
+    }
+  ]
+}
