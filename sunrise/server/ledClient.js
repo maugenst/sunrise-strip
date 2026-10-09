@@ -61,7 +61,8 @@ function connect() {
             // Don't log high-frequency ledState broadcasts
             if (type !== 'ledState') console.log('[ledClient] daemon:', data.toString());
             if (type === 'alarm' || type === 'alarmSet' || type === 'alarmDeleted' ||
-                type === 'sunriseStatus' || type === 'sunriseStopping') {
+                type === 'sunriseStatus' || type === 'sunriseStopping' ||
+                type === 'sunriseQueued') {
                 const handlers = Array.from(responseHandlers.entries());
                 for (const [id, handler] of handlers) {
                     if (handler.type === type ||
@@ -69,7 +70,8 @@ function connect() {
                         (handler.type === 'setAlarm' && type === 'alarmSet') ||
                         (handler.type === 'deleteAlarm' && type === 'alarmDeleted') ||
                         (handler.type === 'sunriseStatus' && type === 'sunriseStatus') ||
-                        (handler.type === 'stopSunrise' && type === 'sunriseStopping')) {
+                        (handler.type === 'stopSunrise' && type === 'sunriseStopping') ||
+                        (handler.type === 'sunriseQueued' && type === 'sunriseQueued')) {
                         handler.resolve(response);
                         responseHandlers.delete(id);
                         break;
@@ -183,8 +185,19 @@ export async function deleteAlarm() {
 }
 
 /**
- * Send stopSunrise command to daemon
+ * Start the sunrise animation on the daemon (hardware mode)
  */
+export async function startSunrise(minutes, delayMs = 40) {
+    try {
+        const msg = { cmd: 'startSunrise', delayMs };
+        if (minutes) msg.minutes = minutes;
+        const response = await sendAndWait(msg, 'sunriseQueued');
+        return response;
+    } catch (e) {
+        console.error('[ledClient] startSunrise error:', e.message);
+        return { ok: false, error: e.message };
+    }
+}
 export async function stopSunrise() {
     try {
         const response = await sendAndWait({ cmd: 'stopSunrise' }, 'stopSunrise');

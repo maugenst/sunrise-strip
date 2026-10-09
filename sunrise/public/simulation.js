@@ -4,6 +4,8 @@ const STEP_COUNT = 20;
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
+let realMode = false; // module-scoped so updateStopBtn can read it
+
 const state = {
   rows: initRows(),
   simulationMinutes: 15,
@@ -455,6 +457,15 @@ function updateStopBtn() {
   btn.className = 'btn btn-sm ' + (state.sunriseRunning ? 'btn-amber' : 'btn-ghost');
   btn.style.opacity = state.sunriseRunning ? '1' : '.45';
 
+  // In real mode, repurpose the play button as start/stop
+  if (realMode) {
+    const playBtn = document.getElementById('playBtn');
+    if (playBtn) {
+      playBtn.textContent = state.sunriseRunning ? '⏹ Stop sunrise' : '🌅 Start sunrise';
+      playBtn.className = 'btn btn-sm ' + (state.sunriseRunning ? 'btn-danger' : 'btn-primary');
+    }
+  }
+
   // Show/hide live indicator banner
   let banner = document.getElementById('sunriseLiveBanner');
   if (state.sunriseRunning) {
@@ -603,6 +614,27 @@ async function init() {
   setupChartDrag(CHANNELS[1]);
   setupChartDrag(CHANNELS[2]);
 
+  // ── Mode toggle ──────────────────────────────────────────────────────────────
+
+  function setMode(real) {
+    realMode = real;
+    document.getElementById('modeSimBtn').classList.toggle('active', !real);
+    document.getElementById('modeRealBtn').classList.toggle('active',  real);
+    document.getElementById('simMinutes').disabled = real; // duration from preset in real mode
+    document.getElementById('scrubber').disabled   = real;
+    document.getElementById('muteBtn').disabled    = real; // audio via Pi speaker in real mode
+    document.getElementById('audioBadge').textContent = real
+      ? '🔈 Pi speaker'
+      : (_audioLoaded ? '🎵 Audio ready' : '⏳ Loading audio…');
+    const playBtn = document.getElementById('playBtn');
+    playBtn.textContent = real ? '🌅 Start sunrise' : '▶ Play';
+    playBtn.className = 'btn btn-sm ' + (real ? 'btn-primary' : 'btn-success');
+    appendLog(real ? '🌅 Real mode — hardware LEDs + Pi speaker' : '🖥 Sim mode — browser animation');
+  }
+
+  document.getElementById('modeSimBtn')?.addEventListener('click',  () => setMode(false));
+  document.getElementById('modeRealBtn')?.addEventListener('click', () => setMode(true));
+
   // sim minutes input
   const simMins = document.getElementById('simMinutes');
   if (simMins) {
@@ -613,8 +645,34 @@ async function init() {
     });
   }
 
-  // play button
-  document.getElementById('playBtn')?.addEventListener('click', togglePlay);
+  // play button — branches on mode
+  document.getElementById('playBtn')?.addEventListener('click', async () => {
+    if (realMode) {
+      if (state.sunriseRunning) {
+        await stopSunrise();
+      } else {
+        try {
+          const res = await fetch('/api/sunrise', { method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({}) });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.ok) {
+            appendLog('🌅 Real sunrise started on device');
+            showToast('Sunrise started on device', 'success');
+          } else {
+            appendLog('⚠ Start failed: ' + (data.error ?? 'unknown'));
+            showToast('Failed to start sunrise', 'error');
+          }
+        } catch (e) {
+          appendLog('⚠ ' + e.message);
+          showToast('Network error', 'error');
+        }
+        await refreshSunriseStatus();
+      }
+    } else {
+      togglePlay();
+    }
+  });
 
   // LED off button
   document.getElementById('ledOffBtn')?.addEventListener('click', turnOffLed);

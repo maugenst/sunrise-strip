@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url';
 import {
     setColor, turnOff, getStatus,
     getAlarm, setAlarm, deleteAlarm,
-    stopSunrise, getSunriseStatus
+    stopSunrise, getSunriseStatus, startSunrise
 } from './server/ledClient.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -133,6 +133,18 @@ app.post('/api/preset', async (req, reply) => {
         return { ok: true };
     } catch (e) {
         return reply.code(500).send({ ok: false, error: 'write_failed', message: String(e) });
+    }
+});
+
+// ── sunrise start/stop routes ─────────────────────────────────────────────────
+
+app.post('/api/sunrise', async (req, reply) => {
+    try {
+        const { minutes, delayMs } = req.body ?? {};
+        const result = await startSunrise(minutes, delayMs);
+        return { ok: true, ...result };
+    } catch (e) {
+        return reply.code(500).send({ ok: false, error: e.message });
     }
 });
 

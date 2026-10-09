@@ -123,7 +123,36 @@
     .console-section { display: flex; flex-direction: column; gap: .4rem; }
     #logOutput { height: 140px; }
 
-    /* ── Bottom padding on mobile ── */
+    /* ── Mode toggle ── */
+    .mode-toggle {
+      display: flex;
+      align-items: center;
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .mode-btn {
+      padding: .3rem .75rem;
+      font-size: .78rem;
+      font-weight: 600;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: background var(--transition), color var(--transition);
+      white-space: nowrap;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .mode-btn.active {
+      background: var(--surface-2);
+      color: var(--text);
+    }
+    .mode-btn.active.real {
+      background: var(--primary);
+      color: #fff;
+    }
     @media (max-width: 480px) {
       .controls-bar { gap: .45rem; }
       .controls-bar .divider-v { display: none; }
@@ -152,6 +181,15 @@
 
   <!-- Controls -->
   <div class="controls-bar">
+
+    <!-- Mode toggle -->
+    <div class="mode-toggle" title="Sim: browser animation + browser audio&#10;Real: hardware LEDs + Pi speaker">
+      <button class="mode-btn active" id="modeSimBtn">🖥 Sim</button>
+      <button class="mode-btn real"   id="modeRealBtn">🌅 Real</button>
+    </div>
+
+    <div class="divider-v"></div>
+
     <button id="playBtn" class="btn btn-success btn-sm">▶ Play</button>
 
     <button id="ledOffBtn" class="btn btn-danger btn-sm">⏹ Off</button>
