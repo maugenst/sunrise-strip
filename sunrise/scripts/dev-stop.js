@@ -2,7 +2,7 @@
 // scripts/dev-stop.js — kill the dev server and mock daemon by port
 import { execSync } from 'child_process';
 
-const PORTS = [8080, 5455];
+const PORTS = [8080, 8081, 5455];
 
 for (const port of PORTS) {
     try {

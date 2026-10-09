@@ -60,6 +60,8 @@ function connect() {
             const type = response.type;
             // Don't log high-frequency ledState broadcasts
             if (type !== 'ledState') console.log('[ledClient] daemon:', data.toString());
+            // Notify any registered broadcast listeners (e.g. the event proxy)
+            notifyListeners(response);
             if (type === 'alarm' || type === 'alarmSet' || type === 'alarmDeleted' ||
                 type === 'sunriseStatus' || type === 'sunriseStopping' ||
                 type === 'sunriseQueued') {
@@ -84,8 +86,18 @@ function connect() {
     });
 }
 
-// kick off the connection at module load
-connect();
+// Broadcast listeners — called for every message from the daemon
+const _broadcastListeners = [];
+
+export function onBroadcast(fn) {
+    _broadcastListeners.push(fn);
+}
+
+function notifyListeners(msg) {
+    for (const fn of _broadcastListeners) {
+        try { fn(msg); } catch {}
+    }
+}
 
 function send(msg) {
     if (connected && ws && ws.readyState === WebSocket.OPEN) {

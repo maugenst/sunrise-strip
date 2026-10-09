@@ -450,7 +450,9 @@ let _realProgress = 0; // 0..100
 function connectDaemonWs() {
   if (_daemonWs && (_daemonWs.readyState === WebSocket.OPEN || _daemonWs.readyState === WebSocket.CONNECTING)) return;
 
-  const url = `ws://${location.hostname}:5455`;
+  // Connect to the event proxy (port 8081) — safe to expose on LAN,
+  // read-only broadcast of sunrise events. Port 5455 is localhost-only on the Pi.
+  const url = `ws://${location.hostname}:8081`;
   _daemonWs = new WebSocket(url);
 
   _daemonWs.addEventListener('open', () => {

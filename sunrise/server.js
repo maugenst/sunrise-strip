@@ -4,10 +4,12 @@ import staticPlugin from '@fastify/static';
 import fs from 'fs/promises';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { WebSocketServer } from 'ws';
 import {
     setColor, turnOff, getStatus,
     getAlarm, setAlarm, deleteAlarm,
-    stopSunrise, getSunriseStatus, startSunrise
+    stopSunrise, getSunriseStatus, startSunrise,
+    onBroadcast
 } from './server/ledClient.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -198,3 +200,31 @@ try {
     app.log.error(err);
     process.exit(1);
 }
+
+// ── WebSocket event proxy on port 8081 ────────────────────────────────────────
+// Bridges daemon events (sunriseStarted/Progress/Done) to browser clients.
+// Browsers connect to ws://[host]:8081/events — safe to expose on LAN since
+// it only forwards read-only broadcast events (no LED control commands).
+
+const eventWss = new WebSocketServer({ port: 8081, host: '0.0.0.0' });
+
+eventWss.on('listening', () => console.log('Event proxy WS on ws://0.0.0.0:8081'));
+
+eventWss.on('connection', (client) => {
+    // no-op: clients only receive, they don't send commands here
+    client.on('error', () => {});
+});
+
+// Register a broadcast listener in ledClient — called whenever the daemon
+// sends a message. We forward sunrise events to all browser clients.
+onBroadcast((msg) => {
+    const FORWARD = new Set(['sunriseStarted', 'sunriseProgress', 'sunriseDone',
+                             'sunriseStopping', 'sunriseQueued', 'sunriseStatus']);
+    if (!FORWARD.has(msg.type)) return;
+    const raw = JSON.stringify(msg);
+    for (const client of eventWss.clients) {
+        if (client.readyState === 1) {
+            try { client.send(raw); } catch {}
+        }
+    }
+});
