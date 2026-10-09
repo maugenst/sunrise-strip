@@ -597,41 +597,50 @@ async function loadAudio() {
 
 function startAudioFadeIn(durationS = 20) {
   if (!audioLoaded || !audioCtx) { appendLog('⚠ Audio not loaded yet'); return; }
+
+  // Stop any currently playing source cleanly before restarting
   if (audioSource) { try { audioSource.stop(); } catch {} audioSource = null; }
-  if (audioFading) return;
+  if (gainNode)    { try { gainNode.disconnect(); } catch {} gainNode = null; }
+  audioFading = false; // always reset so repeat runs work
 
-  // Resume context if suspended (browsers require a user gesture first;
-  // in sandbox the Start button click is enough)
-  audioCtx.resume();
+  // Ensure at least 10s so the fade is audible even on short test runs
+  const fadeDuration = Math.max(10, durationS);
 
-  gainNode = audioCtx.createGain();
-  gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
-  gainNode.gain.linearRampToValueAtTime(1.0, audioCtx.currentTime + durationS);
-  gainNode.connect(audioCtx.destination);
+  // Resume context — browsers suspend it until a user gesture (Start button counts)
+  audioCtx.resume().then(() => {
+    gainNode = audioCtx.createGain();
+    gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+    gainNode.gain.linearRampToValueAtTime(1.0, audioCtx.currentTime + fadeDuration);
+    gainNode.connect(audioCtx.destination);
 
-  audioSource = audioCtx.createBufferSource();
-  audioSource.buffer = audioBuffer;
-  audioSource.loop = true;
-  audioSource.connect(gainNode);
-  audioSource.start();
-  audioFading = true;
-
-  appendLog(`🎵 Audio fade-in started (${durationS}s)`);
+    audioSource = audioCtx.createBufferSource();
+    audioSource.buffer = audioBuffer;
+    audioSource.loop = true;
+    audioSource.connect(gainNode);
+    audioSource.start();
+    audioFading = true;
+    appendLog(`🎵 Audio fade-in started (${fadeDuration}s)`);
+  }).catch(e => appendLog('⚠ AudioContext resume failed: ' + e.message));
 }
 
 function startAudioFadeOut(durationS = 10) {
-  if (!gainNode || !audioSource) return;
+  if (!gainNode || !audioSource) { appendLog('⚠ No audio playing to fade out'); return; }
 
   const now = audioCtx.currentTime;
   gainNode.gain.cancelScheduledValues(now);
   gainNode.gain.setValueAtTime(gainNode.gain.value, now);
   gainNode.gain.linearRampToValueAtTime(0, now + durationS);
 
-  const src = audioSource;
+  const src  = audioSource;
+  const gain = gainNode;
   audioSource = null;
+  gainNode    = null;
   audioFading = false;
 
-  setTimeout(() => { try { src.stop(); } catch {} }, (durationS + 0.5) * 1000);
+  setTimeout(() => {
+    try { src.stop(); }  catch {}
+    try { gain.disconnect(); } catch {}
+  }, (durationS + 0.5) * 1000);
   appendLog(`🔇 Audio fade-out started (${durationS}s)`);
 }
 

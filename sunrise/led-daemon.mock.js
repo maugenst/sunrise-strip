@@ -108,10 +108,11 @@ async function runSunrise(minutes, delayMs, broadcast) {
         pixels.fill(rgbToInt(r, g, b));
         mockRender();
 
-        if (pct > 95 && !audioStarted) {
+        if (pct > 80 && !audioStarted) {
             audioStarted = true;
             const remainingMs = (steps - step) * actualDelay;
-            const durationS = Math.round(remainingMs / 1000);
+            // Ensure at least 10s fade-in so it's audible even on short test runs
+            const durationS = Math.max(10, Math.round(remainingMs / 1000));
             console.log(`[mock] audio fadein — broadcasting to browser (duration: ${durationS}s)`);
             broadcast({ type: 'audioFadeIn', durationS });
         }
