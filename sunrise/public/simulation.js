@@ -620,7 +620,7 @@ async function init() {
     realMode = real;
     document.getElementById('modeSimBtn').classList.toggle('active', !real);
     document.getElementById('modeRealBtn').classList.toggle('active',  real);
-    document.getElementById('simMinutes').disabled = real; // duration from preset in real mode
+    document.getElementById('simMinutes').disabled = false; // editable in both modes
     document.getElementById('scrubber').disabled   = real;
     document.getElementById('muteBtn').disabled    = real; // audio via Pi speaker in real mode
     document.getElementById('audioBadge').textContent = real
@@ -629,7 +629,7 @@ async function init() {
     const playBtn = document.getElementById('playBtn');
     playBtn.textContent = real ? '🌅 Start sunrise' : '▶ Play';
     playBtn.className = 'btn btn-sm ' + (real ? 'btn-primary' : 'btn-success');
-    appendLog(real ? '🌅 Real mode — hardware LEDs + Pi speaker' : '🖥 Sim mode — browser animation');
+    appendLog(real ? '🌅 Real mode — hardware LEDs + Pi speaker (duration editable)' : '🖥 Sim mode — browser animation');
   }
 
   document.getElementById('modeSimBtn')?.addEventListener('click',  () => setMode(false));
@@ -652,9 +652,10 @@ async function init() {
         await stopSunrise();
       } else {
         try {
+          const minutes = parseFloat(document.getElementById('simMinutes')?.value) || undefined;
           const res = await fetch('/api/sunrise', { method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({}) });
+            body: JSON.stringify({ minutes }) });
           const data = await res.json().catch(() => ({}));
           if (res.ok && data.ok) {
             appendLog('🌅 Real sunrise started on device');
