@@ -8,11 +8,12 @@ const state = {
   rows: initRows(),
   simulationMinutes: 15,
   isPlaying: false,
-  playProgress: 0,      // 0 .. STEP_COUNT-1 (float)
+  playProgress: 0,
   lastTimestamp: 0,
   logs: [],
-  ledDebounce: null,
   sunriseRunning: false,
+  audioStarted: false,
+  _lastLoggedPct: -1,
   rafId: null
 };
 
@@ -188,6 +189,79 @@ function setupChartDrag(ch) {
   svg.addEventListener('pointerleave', e => { dragging = null; });
 }
 
+// ── Web Audio engine ──────────────────────────────────────────────────────────
+
+let _audioCtx    = null;
+let _audioBuffer = null;
+let _audioSource = null;
+let _gainNode    = null;
+let _audioLoaded = false;
+
+async function loadAudio() {
+  if (_audioLoaded) return;
+  _setAudioBadge('⏳ Loading audio…', 'var(--text-muted)');
+  try {
+    const res = await fetch('/birds.mp3');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    _audioCtx    = new AudioContext();
+    _audioBuffer = await _audioCtx.decodeAudioData(await res.arrayBuffer());
+    _audioLoaded = true;
+    appendLog('🎵 Audio loaded (' + (_audioBuffer.duration / 60).toFixed(1) + ' min)');
+    _setAudioBadge('🎵 Audio ready', 'var(--success)');
+  } catch (e) {
+    appendLog('⚠ Audio load failed: ' + e.message);
+    _setAudioBadge('⚠ Audio failed', 'var(--danger)');
+  }
+}
+
+function _setAudioBadge(text, color) {
+  let badge = document.getElementById('audioBadge');
+  if (!badge) return;
+  badge.textContent = text;
+  badge.style.color = color;
+}
+
+function audioFadeIn(durationS = 20) {
+  if (!_audioLoaded || !_audioCtx) {
+    appendLog('⚠ Audio not loaded yet — skipping fade-in');
+    _setAudioBadge('⚠ Audio not ready', 'var(--amber)');
+    return;
+  }
+  if (_audioSource) { try { _audioSource.stop(); } catch {} _audioSource = null; }
+  if (_gainNode)    { try { _gainNode.disconnect(); } catch {} _gainNode = null; }
+
+  _audioCtx.resume().then(() => {
+    _gainNode = _audioCtx.createGain();
+    _gainNode.gain.setValueAtTime(0, _audioCtx.currentTime);
+    _gainNode.gain.linearRampToValueAtTime(1.0, _audioCtx.currentTime + Math.max(10, durationS));
+    _gainNode.connect(_audioCtx.destination);
+
+    _audioSource = _audioCtx.createBufferSource();
+    _audioSource.buffer = _audioBuffer;
+    _audioSource.loop = true;
+    _audioSource.connect(_gainNode);
+    _audioSource.start();
+    appendLog(`🎵 Audio fade-in (${Math.max(10, durationS)}s)`);
+    _setAudioBadge('🎵 Audio fading in…', 'var(--success)');
+  }).catch(e => {
+    appendLog('⚠ AudioContext resume failed: ' + e.message);
+    _setAudioBadge('⚠ Audio error', 'var(--danger)');
+  });
+}
+
+function audioFadeOut(durationS = 10) {
+  if (!_gainNode || !_audioSource) return;
+  const now = _audioCtx.currentTime;
+  _gainNode.gain.cancelScheduledValues(now);
+  _gainNode.gain.setValueAtTime(_gainNode.gain.value, now);
+  _gainNode.gain.linearRampToValueAtTime(0, now + durationS);
+  const src = _audioSource; const gain = _gainNode;
+  _audioSource = null; _gainNode = null;
+  setTimeout(() => { try { src.stop(); } catch {} try { gain.disconnect(); } catch {} }, (durationS + 0.5) * 1000);
+  appendLog(`🔇 Audio fade-out (${durationS}s)`);
+  _setAudioBadge('🔇 Audio fading out…', 'var(--text-muted)');
+}
+
 // ── Animation loop ────────────────────────────────────────────────────────────
 
 function tick(timestamp) {
@@ -212,6 +286,25 @@ function tick(timestamp) {
   const kelvin = Math.round(1800 + (6500 - 1800) * pct01);
   const intensity = Math.round(((r + g + b) / 3 / 255) * 100);
 
+  // Log only once per 1% step — rAF fires ~60x/s which floods the 400-line buffer
+  if (Math.floor(pct01 * 100) !== state._lastLoggedPct) {
+    state._lastLoggedPct = Math.floor(pct01 * 100);
+    appendLog(`${(pct01 * 100).toFixed(1)}% | ${kelvin}K | ${intensity}% | RGB(${r},${g},${b}) | ${toHex(r, g, b)}`);
+  }
+
+  // Trigger audio fade-in at 80%
+  if (pct01 >= 0.8 && !state.audioStarted) {
+    state.audioStarted = true;
+    const remainingMs = (1 - pct01) * state.simulationMinutes * 60_000;
+    audioFadeIn(Math.round(remainingMs / 1000));
+  }
+
+  // Trigger audio fade-out when animation ends
+  if (!state.isPlaying && state.audioStarted) {
+    state.audioStarted = false;
+    audioFadeOut(10);
+  }
+
   appendLog(`${(pct01 * 100).toFixed(1)}% | ${kelvin}K | ${intensity}% | RGB(${r},${g},${b}) | ${toHex(r, g, b)}`);
 
   update();
@@ -229,6 +322,8 @@ function togglePlay() {
   state.playProgress = 0;
   state.lastTimestamp = 0;
   state.isPlaying = true;
+  state.audioStarted = false;
+  state._lastLoggedPct = -1;
   state.logs = [`▶ Starting simulation — ${state.simulationMinutes} min`];
   update();
   state.rafId = requestAnimationFrame(tick);
@@ -544,6 +639,7 @@ async function init() {
   // load preset then render
   await loadPreset();
   await refreshSunriseStatus();
+  loadAudio(); // non-blocking — loads birds.mp3 in background
   update();
 
   // poll sunrise status every 5s
