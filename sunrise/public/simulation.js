@@ -237,6 +237,8 @@ function togglePlay() {
 // ── LED API ───────────────────────────────────────────────────────────────────
 
 function sendColorDebounced(r, g, b) {
+  // Don't override the daemon while a real sunrise is running on the hardware
+  if (state.sunriseRunning) return;
   if (state.ledDebounce) clearTimeout(state.ledDebounce);
   state.ledDebounce = setTimeout(async () => {
     try {
@@ -344,6 +346,26 @@ function updateStopBtn() {
   btn.textContent = state.sunriseRunning ? '⏹ Stop sunrise' : '— No sunrise running';
   btn.className = 'btn btn-sm ' + (state.sunriseRunning ? 'btn-amber' : 'btn-ghost');
   btn.style.opacity = state.sunriseRunning ? '1' : '.45';
+
+  // Show/hide live indicator banner
+  let banner = document.getElementById('sunriseLiveBanner');
+  if (state.sunriseRunning) {
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'sunriseLiveBanner';
+      banner.style.cssText = `
+        position:fixed; bottom:1rem; left:50%; transform:translateX(-50%);
+        background:rgba(249,115,22,0.15); border:1px solid var(--primary);
+        border-radius:8px; padding:.5rem 1.25rem; color:var(--primary);
+        font-size:.85rem; font-weight:600; pointer-events:none; z-index:99;
+        backdrop-filter:blur(8px);
+      `;
+      document.body.appendChild(banner);
+    }
+    banner.textContent = '🌅 Real sunrise running on hardware — LED scrubbing paused';
+  } else if (banner) {
+    banner.remove();
+  }
 }
 
 // ── UI update (single reconcile function) ────────────────────────────────────
