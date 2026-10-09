@@ -625,6 +625,17 @@ async function init() {
   // stop sunrise
   document.getElementById('stopSunriseBtn')?.addEventListener('click', stopSunrise);
 
+  // mute/unmute
+  let _muted = false;
+  document.getElementById('muteBtn')?.addEventListener('click', () => {
+    _muted = !_muted;
+    if (_gainNode) _gainNode.gain.setValueAtTime(_muted ? 0 : 1, _audioCtx.currentTime);
+    const btn = document.getElementById('muteBtn');
+    btn.textContent = _muted ? '🔇' : '🔊';
+    btn.style.opacity = _muted ? '0.5' : '1';
+    appendLog(_muted ? '🔇 Muted' : '🔊 Unmuted');
+  });
+
   // scrubber
   const scrubber = document.getElementById('scrubber');
   if (scrubber) {
