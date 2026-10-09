@@ -1,13 +1,17 @@
 // index.js — cron-invoked sunrise trigger.
-// Sends a startSunrise command to the already-running led-daemon via WebSocket.
-// The daemon owns GPIO and runs the full animation; this process just waits for completion.
+// Connects to the already-running led-daemon via WebSocket and sends startSunrise.
+// Waits for sunriseDone before exiting so the cron log captures the full run.
 
 import WebSocket from 'ws';
 
 const DAEMON_URL = 'ws://127.0.0.1:5455';
 
+function ts()   { return new Date().toISOString(); }
+function log(m) { console.log(`[${ts()}] ${m}`); }
+function err(m) { console.error(`[${ts()}] ERROR ${m}`); }
+
 function parseArgs() {
-    const args = process.argv.slice(2);
+    const args   = process.argv.slice(2);
     const result = { help: false };
     for (let i = 0; i < args.length; i++) {
         const a = args[i];
@@ -33,44 +37,62 @@ Sunrise trigger — sends startSunrise to led-daemon.
     process.exit(0);
 }
 
-const cli = parseArgs();
+const cli     = parseArgs();
+const minutes = cli.minutes ?? (Number(process.env.SUNRISE_MINUTES) || undefined);
+const delayMs = cli.delayMs ?? (Number(process.env.SUNRISE_DELAY_MS) || 40);
 
-const minutes = cli.minutes ?? Number(process.env.SUNRISE_MINUTES) || undefined;
-const delayMs = cli.delayMs ?? Number(process.env.SUNRISE_DELAY_MS) || 40;
+log(`index.js started. PID=${process.pid} minutes=${minutes ?? 'from preset'} delayMs=${delayMs}`);
 
 const ws = new WebSocket(DAEMON_URL);
 
+// Give up after 10 seconds if we can't connect
+const connectTimeout = setTimeout(() => {
+    err(`Timed out connecting to daemon at ${DAEMON_URL} — is led-daemon running?`);
+    process.exit(1);
+}, 10000);
+
 ws.on('error', (e) => {
-    console.error('Failed to connect to led-daemon:', e.message);
-    console.error('Make sure led-daemon.js is running as root.');
+    err(`WebSocket error: ${e.message}`);
+    err(`Make sure led-daemon.js is running as root (sudo systemctl start led-daemon)`);
+    clearTimeout(connectTimeout);
     process.exit(1);
 });
 
 ws.on('open', () => {
+    clearTimeout(connectTimeout);
     const cmd = { cmd: 'startSunrise', delayMs };
     if (minutes) cmd.minutes = minutes;
-    console.log('Connected to daemon. Sending startSunrise:', JSON.stringify(cmd));
+    log(`Connected to daemon. Sending: ${JSON.stringify(cmd)}`);
     ws.send(JSON.stringify(cmd));
 });
 
 ws.on('message', (buf) => {
     let msg;
     try { msg = JSON.parse(buf.toString()); } catch { return; }
-    console.log('[daemon]', JSON.stringify(msg));
+
+    log(`Daemon → ${JSON.stringify(msg)}`);
 
     if (msg.type === 'sunriseQueued') {
-        console.log(`Sunrise queued for ${msg.minutes} minutes. Waiting for completion...`);
+        log(`Sunrise queued for ${msg.minutes} minutes. Waiting for completion...`);
+    } else if (msg.type === 'sunriseProgress') {
+        // logged by daemon — no action needed here
     } else if (msg.type === 'sunriseDone') {
-        console.log('Sunrise complete.', msg.aborted ? '(aborted)' : '');
+        log(`Sunrise complete. Aborted=${msg.aborted}. Exiting.`);
         ws.close();
         process.exit(0);
     } else if (msg.ok === false) {
-        console.error('Daemon error:', msg.error);
+        err(`Daemon error: ${msg.error}`);
         ws.close();
         process.exit(1);
     }
 });
 
 ws.on('close', () => {
-    console.log('Connection to daemon closed.');
+    log('Connection to daemon closed.');
 });
+
+// Safety exit after 20 minutes regardless — prevents cron job from hanging forever
+setTimeout(() => {
+    err('Safety timeout reached (20min) — forcing exit');
+    process.exit(1);
+}, 20 * 60 * 1000);
