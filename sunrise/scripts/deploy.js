@@ -54,9 +54,10 @@ console.log('\n── Step 1: Check local state ──────────�
 process.chdir(REPO_ROOT);
 
 // Only check tracked file changes (staged + unstaged), not untracked files.
-// Untracked files that aren't gitignored are the user's business, not a deploy blocker.
+// Also ignore .wolf/ files — they are runtime memory/session files that change
+// constantly and should never block a deploy.
 const localDirty = capture('git status --porcelain').split('\n')
-    .filter(l => l && !l.startsWith('??'))
+    .filter(l => l && !l.startsWith('??') && !l.includes('.wolf/'))
     .join('\n');
 if (localDirty) {
     console.error('✖ You have uncommitted changes to tracked files. Commit them first.');
