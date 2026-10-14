@@ -178,11 +178,15 @@ async function runSunrise(minutes, delayMs, broadcast) {
 
 // ── Crontab helpers ───────────────────────────────────────────────────────────
 
+// Crontab is managed for the ALARM_USER, not root (the daemon runs as root).
+// Using -u ensures the alarm appears in the correct user's crontab.
+const ALARM_USER = 'marius';
+
 function writeCrontab(content) {
     const tmp = join(tmpdir(), `sunrise-cron-${process.pid}.txt`);
     try {
         writeFileSync(tmp, content, { encoding: 'utf8', mode: 0o600 });
-        execSync(`crontab ${tmp}`, { encoding: 'utf8' });
+        execSync(`crontab -u ${ALARM_USER} ${tmp}`, { encoding: 'utf8' });
         log('Crontab written successfully');
     } finally {
         try { unlinkSync(tmp); } catch {}
@@ -191,7 +195,7 @@ function writeCrontab(content) {
 
 function getExistingCrontab() {
     try {
-        const crontab = execSync('crontab -l 2>/dev/null || true', { encoding: 'utf8' });
+        const crontab = execSync(`crontab -u ${ALARM_USER} -l 2>/dev/null || true`, { encoding: 'utf8' });
         return crontab.split('\n').filter(line => !line.includes(CRONTAB_MARKER)).join('\n').trim();
     } catch (e) {
         err('Error reading crontab: ' + e.message);
@@ -201,7 +205,7 @@ function getExistingCrontab() {
 
 function getCurrentAlarm() {
     try {
-        const crontab = execSync('crontab -l 2>/dev/null || true', { encoding: 'utf8' });
+        const crontab = execSync(`crontab -u ${ALARM_USER} -l 2>/dev/null || true`, { encoding: 'utf8' });
         for (const line of crontab.split('\n')) {
             if (line.includes(CRONTAB_MARKER)) {
                 const match = line.match(/^(\d+)\s+(\d+)\s+/);
@@ -244,7 +248,7 @@ function deleteAlarm() {
         if (content.trim()) {
             writeCrontab(content);
         } else {
-            execSync('crontab -r 2>/dev/null || true', { encoding: 'utf8' });
+            execSync(`crontab -u ${ALARM_USER} -r 2>/dev/null || true`, { encoding: 'utf8' });
         }
         log('Alarm deleted');
         return { ok: true, enabled: false };
