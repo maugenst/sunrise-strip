@@ -87,7 +87,8 @@ ws.on('message', (buf) => {
 });
 
 ws.on('close', () => {
-    log('Connection to daemon closed.');
+    log('Connection to daemon closed unexpectedly — exiting.');
+    process.exit(1);
 });
 
 // Safety exit after 20 minutes regardless — prevents cron job from hanging forever
