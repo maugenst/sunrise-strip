@@ -338,7 +338,7 @@ wss.on('connection', (client, req) => {
             const hour    = parseInt(msg.hour,   10);
             const minute  = parseInt(msg.minute, 10);
             const enabled = msg.enabled !== false;
-            const command = msg.command || 'cd /home/marius/github/sunrise-strip/sunrise && /usr/local/bin/node led-client-runner.js >> /var/log/sunrise-cron.log 2>&1';
+            const command = msg.command || 'cd /home/marius/github/sunrise-strip/sunrise && /usr/local/bin/node led-client-runner.js >> /home/marius/github/sunrise-strip/sunrise/sunrise-cron.log 2>&1';
             if (isNaN(hour) || isNaN(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
                 err(`setAlarm invalid time: ${msg.hour}:${msg.minute}`);
                 client.send(JSON.stringify({ ok: false, error: 'invalid_time' }));

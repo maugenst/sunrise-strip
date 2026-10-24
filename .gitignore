@@ -56,6 +56,9 @@ lerna-debug.log*
 *.png
 .playwright-mcp/
 
+# cron log
+sunrise/sunrise-cron.log
+
 # OS
 .DS_Store
 
